@@ -48,12 +48,9 @@ jobs:
     - name: Lint with mypy
       run: |
         mypy commondao
-    - name: Test with pytest
-      run: |
-        pytest tests --log-cli-level=DEBUG -v
     - name: Run E2E tests
       run: |
-        pytest tests/e2e_test.py -v
+        pytest tests/e2e_test.py --log-cli-level=DEBUG -v
       env:
         TEST_DB_HOST: localhost
         TEST_DB_PORT: 3306
