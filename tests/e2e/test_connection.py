@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from commondao.commondao import connect
 
 
-class TestConfig:
+class DbConfig:
     """测试数据库配置"""
     def __init__(self):
         self.host = os.environ.get('TEST_DB_HOST', 'localhost')
@@ -26,7 +26,7 @@ class User(BaseModel):
 @pytest.fixture
 async def setup_test_table():
     """创建测试表并在测试结束后删除"""
-    config = TestConfig()
+    config = DbConfig()
     db_config = {
         'host': config.host,
         'port': config.port,
@@ -55,7 +55,7 @@ async def setup_test_table():
 @pytest.mark.asyncio
 async def test_connection():
     """测试数据库连接是否成功"""
-    config = TestConfig()
+    config = DbConfig()
     db_config = {
         'host': config.host,
         'port': config.port,
@@ -71,7 +71,7 @@ async def test_connection():
 @pytest.mark.asyncio
 async def test_basic_operations(setup_test_table):
     """测试基本的数据库操作"""
-    config = TestConfig()
+    config = DbConfig()
     db_config = {
         'host': config.host,
         'port': config.port,
@@ -101,7 +101,7 @@ async def test_basic_operations(setup_test_table):
 @pytest.mark.asyncio
 async def test_model_validation(setup_test_table):
     """测试模型验证功能"""
-    config = TestConfig()
+    config = DbConfig()
     db_config = {
         'host': config.host,
         'port': config.port,
