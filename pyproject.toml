@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "commondao"
+version = "1.0.0"
+description = 'Mysql toolkit'
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ['mysql']
+authors = [
+    {name = "qorzj", email = "goodhorsezxj@gmail.com"},
+]
+license = {text = "Apache 2"}
+dependencies = [
+    'mysql-connector',
+    'aiomysql',
+    'orjson',
+    'pydantic',
+]
+
+[project.optional-dependencies]
+test = [
+    "flake8",
+    "mypy",
+    "coverage",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-asyncio",
+    "types-toml",
+]
+
+[tool.setuptools.package-data]
+"commondao" = ["py.typed"]
+
+[tool.mypy]
+ignore_missing_imports = true
+check_untyped_defs = true
+no_implicit_optional = false
