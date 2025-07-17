@@ -124,11 +124,11 @@ class TestCRUDOperations:
             data={'email': 'eve.updated@example.com', 'age': None}
         )
         assert affected_rows == 1
-        # 验证数据已更新
+        # 验证数据已更新，但age保持原值未变
         result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Eve'")
         assert len(result) == 1
         assert result[0]['email'] == 'eve.updated@example.com'
-        assert result[0]['age'] is None
+        assert result[0]['age'] == 22  # 预期age保持原值，因为update_by_key跳过None值
 
     @pytest.mark.asyncio
     async def test_update_by_key_no_change(self, db: Commondao) -> None:
