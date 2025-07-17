@@ -1,6 +1,7 @@
 import os
 
 import pytest
+import pytest_asyncio
 from pydantic import BaseModel
 
 from commondao.commondao import connect
@@ -23,7 +24,7 @@ class User(BaseModel):
     email: str
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def setup_test_table():
     """创建测试表并在测试结束后删除"""
     config = DbConfig()
@@ -38,15 +39,21 @@ async def setup_test_table():
     async with connect(**db_config) as db:
         # 创建测试表
         await db.execute_mutation("""
+            DROP TABLE IF EXISTS test_users;
             CREATE TABLE IF NOT EXISTS test_users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
                 email VARCHAR(100) NOT NULL
             )
         """)
+        # 验证表已创建
+        verify = await db.execute_query("SHOW TABLES LIKE 'test_users'")
+        assert verify, "测试表未能成功创建"
         # 插入测试数据
         await db.insert('test_users', data={'name': 'Test User', 'email': 'test@example.com'})
+
     yield
+
     # 清理测试表
     async with connect(**db_config) as db:
         await db.execute_mutation("DROP TABLE IF EXISTS test_users")
