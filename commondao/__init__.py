@@ -28,15 +28,15 @@ __all__ = (
 
 # A mapping of {<member name>: (package, <module name>)} defining dynamic imports
 _dynamic_imports: 'dict[str, tuple[str|None, str]]' = {
-    "Commondao": (__name__, "commondao"),
-    "NotFoundError": (__name__, "commondao"),
-    "Paged": (__name__, "commondao"),
-    "QueryDict": (__name__, "commondao"),
-    "RawSql": (__name__, "commondao"),
-    "RowDict": (__name__, "commondao"),
-    "connect": (__name__, "commondao"),
-    "is_query_dict": (__name__, "commondao"),
-    "is_row_dict": (__name__, "commondao"),
+    "Commondao": (__name__, ".commondao"),
+    "NotFoundError": (__name__, ".commondao"),
+    "Paged": (__name__, ".commondao"),
+    "QueryDict": (__name__, ".commondao"),
+    "RawSql": (__name__, ".commondao"),
+    "RowDict": (__name__, ".commondao"),
+    "connect": (__name__, ".commondao"),
+    "is_query_dict": (__name__, ".commondao"),
+    "is_row_dict": (__name__, ".commondao"),
 }
 
 
@@ -52,7 +52,10 @@ def __getattr__(attr_name: str) -> object:
         globals()[attr_name] = result
         return result
     else:
-        module = import_module(module_name, package=package)
+        if module_name.startswith('.'):
+            module = import_module(module_name, package=package)
+        else:
+            module = import_module(module_name, package=package)
         result = getattr(module, attr_name)
         g = globals()
         for k, (_, v_module_name) in _dynamic_imports.items():
