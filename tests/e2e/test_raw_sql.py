@@ -20,7 +20,7 @@ class UserWithCalculatedFields(BaseModel):
     email: Optional[str] = None
     age: Optional[int] = None
     full_name: Annotated[str, RawSql("CONCAT(name, ' (', COALESCE(email, 'N/A'), ')')")]
-    is_adult: Annotated[bool, RawSql("age >= 18")]
+    is_adult: Annotated[Optional[bool], RawSql("age >= 18")] = None
     registration_info: Annotated[RegistrationStatus, RawSql("CASE WHEN email IS NULL THEN 'Not registered' ELSE 'Registered' END")]
 
 
