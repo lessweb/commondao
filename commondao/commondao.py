@@ -182,22 +182,22 @@ U = typing.TypeVar("U", bound=BaseModel)
 
 
 def validate_row(row: RowDict, model: Type[U]) -> U:
-    """
-    - If item_type is list|BaseModel, then call orjson.loads
-    - Finally call BaseModel.model_validate
-    """
-    logging.debug('validate %s from row: %s', model, row)
     data = {}
     model_fields = model.model_fields
     for row_key, row_value in row.items():
-        if row_key not in model_fields:
-            continue
         tp = model_fields[row_key].annotation
-        if isinstance(row_value, str) and tp is not str and tp is not None:
-            if is_list_type(tp) or (inspect.isclass(tp) and issubclass(tp, BaseModel)):
-                data[row_key] = orjson.loads(row_value)
-            else:
+        # If the DB column type is JSON, but aiomysql will return it as a Python str
+        if isinstance(row_value, str):
+            if (inspect.isclass(tp) and issubclass(tp, str)) or tp == Union[str, None]:
                 data[row_key] = row_value
+            else:
+                # Here, since we're converting a str value to a non-str type, any leading or trailing whitespace is definitely unnecessary.
+                row_value = row_value.strip()
+                if (row_value.startswith('[') and row_value.endswith(']')) or (
+                        row_value.startswith('{') and row_value.endswith('}')):
+                    data[row_key] = orjson.loads(row_value)
+                else:
+                    data[row_key] = row_value
         else:
             data[row_key] = row_value
     return model.model_validate(data)
