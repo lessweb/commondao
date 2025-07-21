@@ -7,7 +7,7 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from re import Match
 from types import MappingProxyType
-from typing import Mapping, Optional, Type, Union
+from typing import Any, Mapping, Optional, Type, Union
 
 import aiomysql  # type: ignore
 import orjson
@@ -182,7 +182,7 @@ U = typing.TypeVar("U", bound=BaseModel)
 
 
 def validate_row(row: RowDict, model: Type[U]) -> U:
-    data = {}
+    data: dict[str, Any] = {}
     model_fields = model.model_fields
     for row_key, row_value in row.items():
         tp = model_fields[row_key].annotation
