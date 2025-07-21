@@ -186,9 +186,12 @@ def validate_row(row: RowDict, model: Type[U]) -> U:
     - If item_type is list|BaseModel, then call orjson.loads
     - Finally call BaseModel.model_validate
     """
+    logging.debug('validate %s from row: %s', model, row)
     data = {}
     model_fields = model.model_fields
     for row_key, row_value in row.items():
+        if row_key not in model_fields:
+            continue
         tp = model_fields[row_key].annotation
         if isinstance(row_value, str) and tp is not str and tp is not None:
             if is_list_type(tp) or (inspect.isclass(tp) and issubclass(tp, BaseModel)):
