@@ -165,11 +165,13 @@ def script(*segs) -> str:
 
 
 def join(*segs) -> str:
-    return ','.join(seg or '' for seg in segs)
+    filtered = [seg for seg in segs if seg]
+    return ','.join(filtered)
 
 
 def and_(*segs) -> str:
-    ret = ' and '.join(seg or '' for seg in segs).strip()
+    filtered = [seg for seg in segs if seg]
+    ret = ' and '.join(filtered).strip()
     return f'({ret})' if ret else ''
 
 
