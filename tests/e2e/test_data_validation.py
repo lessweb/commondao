@@ -127,7 +127,7 @@ class TestDataValidation:
         for i in range(5):
             await db.execute_mutation(
                 "INSERT INTO test_users_validation (name, email, age) VALUES "
-                f"('User{i}', 'user{i}@example.com', {20+i})"
+                f"('User{i}', 'user{i}@example.com', {20 + i})"
             )
         # Get first 2 users
         paged_result = await db.select_paged(
