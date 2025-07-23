@@ -206,21 +206,37 @@ def validate_row(row: RowDict, model: Type[U]) -> U:
 
 
 class RegexCollect:
-    words: list
+    words: list[str]
+    text_areas: list[tuple[int, int]]
 
     def __init__(self):
         self.words = []
+        self.text_areas = []
+
+    def collect_text_areas(self, sql: str):
+        pattern = r"'.*?'|\".*?\""
+        matches = re.finditer(pattern, sql, flags=re.DOTALL)
+        for match in matches:
+            self.text_areas.append((match.start(), match.end()))
 
     def repl(self, m: Match):
         word = m.group()
+        in_text_area = any(start <= m.start() < end for start, end in self.text_areas)
+        if in_text_area:
+            return word
         self.words.append(word[2:])
         return word[0] + '%s'
 
     def build(self, sql: str, params: typing.Mapping[str, typing.Any]) -> tuple:
+        self.collect_text_areas(sql)
         pattern = r"[^:]:[a-zA-Z][\w.]*"
         pg_sql = re.sub(pattern, self.repl, sql)
-        pg_params = tuple(params[k] for k in self.words)
-        return pg_sql, pg_params
+        pg_params = []
+        for k in self.words:
+            if k not in params:
+                raise ValueError(f"No corresponding value is found for :{k} in params")
+            pg_params.append(params[k])
+        return pg_sql, tuple(pg_params)
 
 
 class Commondao:

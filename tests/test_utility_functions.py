@@ -150,12 +150,11 @@ class TestUtilityFunctions(unittest.TestCase):
         self.assertEqual(pg_params, ())
         # 测试参数在词中间的情况（不应被替换）
         rc = RegexCollect()
-        sql = "SELECT * FROM users WHERE email LIKE 'a:id@example.com'"
-        params = {"id": 1}
+        sql = "SELECT * FROM users WHERE name=\n:name AND email LIKE 'a:id@example.com'"
+        params = {"id": 1, "name": "John"}
         pg_sql, pg_params = rc.build(sql, params)
-        # TODO: fix the known bugs
-        # self.assertEqual(pg_sql, "SELECT * FROM users WHERE email LIKE 'a:id@example.com'")
-        # self.assertEqual(pg_params, ())
+        self.assertEqual(pg_sql, "SELECT * FROM users WHERE name=\n%s AND email LIKE 'a:id@example.com'")
+        self.assertEqual(pg_params, ('John',))
 
 
 if __name__ == "__main__":
