@@ -54,7 +54,7 @@ Insert a Pydantic model instance into the database.
 
 **Example:**
 ```python
-user = User(name='John', email='john@example.com')
+user = UserInsert(name='John', email='john@example.com')
 affected_rows = await db.insert(user)
 ```
 
@@ -72,7 +72,7 @@ Update a record by its primary key using a Pydantic model.
 
 **Example:**
 ```python
-user = User(id=1, name='John Updated', email='john.new@example.com')
+user = UserUpdate(id=1, name='John Updated', email='john.new@example.com')
 affected_rows = await db.update_by_id(user)
 ```
 
@@ -88,7 +88,7 @@ Update records matching the specified key conditions.
 
 **Example:**
 ```python
-user_update = User(name='Jane', email='jane@example.com')
+user_update = UserUpdate(name='Jane', email='jane@example.com')
 affected_rows = await db.update_by_key(user_update, key={'id': 1})
 ```
 
@@ -494,7 +494,7 @@ Raised when attempting operations with empty or None primary key values.
 **Example:**
 ```python
 try:
-    user = User(id=None, name="John")
+    user = UserUpdate(id=None, name="John")
     await db.update_by_id(user)
 except EmptyPrimaryKeyError as e:
     print(f"Primary key error: {e}")
@@ -566,7 +566,7 @@ def process_database_row(data: dict):
     assert is_row_dict(data)
     # Type checker now knows data is RowDict
     # Safe to use for database operations
-    user = User(**data)
+    user = UserInsert(**data)
     await db.insert(user)
 
 def process_query_parameters(params: dict):
@@ -619,3 +619,17 @@ def example_function(unknown_data: dict):
         unknown_data  # Type checker knows this is safe
     )
 ```
+
+## Best Practices
+
+### Entity Class Naming Conventions
+
+When designing Pydantic models for database operations, follow these naming conventions to improve code clarity and maintainability:
+
+把dao.insert的实体类命名为以Insert为后缀的类名; 把dao.update的实体类重命名为以Update为后缀的类名; 其他用于查询的类名不变
+
+一般来说, 用于查询的实体类如果字段DDL为not null,则字段就不能optional; 用于insert的实体类如果字段DDL为nullable,或者有默认值,则字段就可以optional;用于update的实体类的字段都是optional
+
+用于insert的实体类只包含可能需要插入的字段;用于update的实体类只包含可能需要修改的字段
+
+用于insert/update的实体类，即使主键字段是optional，也需要注解TableId

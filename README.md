@@ -35,9 +35,14 @@ from commondao.annotation import TableId
 from pydantic import BaseModel
 from typing import Annotated
 
-# Define your Pydantic model with TableId annotation
+# Define your Pydantic models with TableId annotation
 class User(BaseModel):
     id: Annotated[int, TableId('users')]  # First field with TableId is the primary key
+    name: str
+    email: str
+
+class UserInsert(BaseModel):
+    id: Annotated[Optional[int], TableId('users')] = None  # Optional for auto-increment
     name: str
     email: str
 
@@ -54,7 +59,7 @@ async def main():
 
     async with connect(**config) as db:
         # Insert a new user using Pydantic model
-        user = User(id=1, name='John Doe', email='john@example.com')
+        user = UserInsert(name='John Doe', email='john@example.com')
         await db.insert(user)
 
         # Query the user by key with Pydantic model validation
@@ -91,30 +96,35 @@ from pydantic import BaseModel
 from commondao.annotation import TableId
 from typing import Annotated, Optional
 
-class User(BaseModel):
+class UserInsert(BaseModel):
     id: Annotated[Optional[int], TableId('users')] = None  # Auto-increment primary key
     name: str
     email: str
 
 # Insert using Pydantic model (id will be auto-generated)
-user = User(name='John', email='john@example.com')
+user = UserInsert(name='John', email='john@example.com')
 await db.insert(user)
 print(f"New user id: {db.lastrowid()}")  # Get the auto-generated id
 
 # Insert with ignore option (skips duplicate key errors)
-user2 = User(name='Jane', email='jane@example.com')
+user2 = UserInsert(name='Jane', email='jane@example.com')
 await db.insert(user2, ignore=True)
 ```
 
 ### Update Data (with Pydantic Models)
 
 ```python
+class UserUpdate(BaseModel):
+    id: Optional[int] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+
 # Update by primary key (id must be provided)
-user = User(id=1, name='John Smith', email='john.smith@example.com')
+user = UserUpdate(id=1, name='John Smith', email='john.smith@example.com')
 await db.update_by_id(user)
 
-# Update by custom key (partial update - only non-None fields)
-user_update = User(name='Jane Doe', email='jane.doe@example.com')  # id can be None
+# Update by custom key (partial update - only specified fields)
+user_update = UserUpdate(name='Jane Doe', email='jane.doe@example.com')
 await db.update_by_key(user_update, key={'email': 'john.smith@example.com'})
 ```
 
@@ -294,23 +304,23 @@ result = await db.execute_query(
 from commondao.annotation import TableId
 from typing import Annotated, Optional
 
-class Order(BaseModel):
+class OrderInsert(BaseModel):
     id: Annotated[Optional[int], TableId('orders')] = None
     customer_id: int
     total: float
 
-class OrderItem(BaseModel):
+class OrderItemInsert(BaseModel):
     id: Annotated[Optional[int], TableId('order_items')] = None
     order_id: int
     product_id: int
 
 async with connect(host='localhost', user='root', db='testdb') as db:
     # Start transaction (autocommit=False by default)
-    order = Order(customer_id=1, total=99.99)
+    order = OrderInsert(customer_id=1, total=99.99)
     await db.insert(order)
     order_id = db.lastrowid()  # Get the auto-generated order id
 
-    item = OrderItem(order_id=order_id, product_id=42)
+    item = OrderItemInsert(order_id=order_id, product_id=42)
     await db.insert(item)
 
     # Commit the transaction
