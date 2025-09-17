@@ -197,7 +197,7 @@ def dump_entity_to_row(entity: BaseModel, *, exclude_none: bool) -> RowDict:
     result: dict[str, Any] = {}
     for key, value in data.items():
         if isinstance(value, (dict, list)):
-            result[key] = orjson.dumps(value)
+            result[key] = orjson.dumps(value).decode()
         elif isinstance(value, Enum):
             result[key] = value.value
         else:

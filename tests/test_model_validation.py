@@ -62,9 +62,9 @@ class TestModelValidation(unittest.TestCase):
             'birthday': '1990-01-01',
             'is_admin': 1,  # MySQL returns 1/0 for boolean
             'created_at': datetime.now().isoformat(),
-            'kv_list': [1, 2, 3],
-            'kv_map': {'a': 1, 'b': 2},
-            'kv_obj': {'key': 'test_key', 'value': 42},
+            'kv_list': '[1,2,3]',  # JSON string as returned by MySQL
+            'kv_map': '{"a":1,"b":2}',  # JSON string as returned by MySQL
+            'kv_obj': '{"key":"test_key","value":42}',  # JSON string as returned by MySQL
             'dec_val': Decimal('19.99'),
             'buf': b'hello world',
             'time_diff': timedelta(hours=2, minutes=30),
@@ -72,6 +72,7 @@ class TestModelValidation(unittest.TestCase):
             'extra_field': 'ignored',  # Should be ignored
         }
 
+        assert is_row_dict(row)
         user = validate_row(row, UserModel)
 
         self.assertEqual(user.id, 1)
@@ -82,6 +83,7 @@ class TestModelValidation(unittest.TestCase):
         self.assertEqual(user.kv_list, [1, 2, 3])
         self.assertEqual(user.kv_map, {'a': 1, 'b': 2})
         self.assertIsInstance(user.kv_obj, UserKV)
+        assert user.kv_obj is not None
         self.assertEqual(user.kv_obj.key, 'test_key')
         self.assertEqual(user.kv_obj.value, 42)
         self.assertEqual(user.dec_val, Decimal('19.99'))
@@ -94,12 +96,13 @@ class TestModelValidation(unittest.TestCase):
         row = {
             'name': 'Jane Smith',
             'birthday': '1995-05-15',
-            'kv_list': [4, 5, 6],
+            'kv_list': '[4, 5, 6]',
             'dec_val': Decimal('29.99'),
             'buf': b'test data',
             'time_diff': timedelta(minutes=45),
         }
 
+        assert is_row_dict(row)
         user = validate_row(row, UserModel)
 
         self.assertIsNone(user.id)
@@ -143,9 +146,9 @@ class TestModelValidation(unittest.TestCase):
         self.assertEqual(row['birthday'], date(1993, 8, 20))
         self.assertEqual(row['is_admin'], True)
         # Complex types should be JSON encoded
-        self.assertEqual(row['kv_list'], b'[1,2,3]')
-        self.assertEqual(row['kv_map'], b'{"x":10,"y":20}')
-        self.assertEqual(row['kv_obj'], b'{"key":"sample","value":100}')
+        self.assertEqual(row['kv_list'], '[1,2,3]')
+        self.assertEqual(row['kv_map'], '{"x":10,"y":20}')
+        self.assertEqual(row['kv_obj'], '{"key":"sample","value":100}')
         self.assertEqual(row['created_at'], datetime(2023, 1, 1, 12, 0, 0))
         self.assertEqual(row['dec_val'], Decimal('99.99'))
         self.assertEqual(row['buf'], b'binary data')
@@ -179,7 +182,7 @@ class TestModelValidation(unittest.TestCase):
         self.assertEqual(row['name'], 'Minimal User')
         self.assertEqual(row['birthday'], date(2000, 1, 1))
         self.assertEqual(row['is_admin'], False)  # Default value, not None
-        self.assertEqual(row['kv_list'], b'[]')
+        self.assertEqual(row['kv_list'], '[]')
         self.assertEqual(row['dec_val'], Decimal('0.00'))
         self.assertEqual(row['buf'], b'')
         self.assertEqual(row['time_diff'], timedelta(0))
@@ -228,12 +231,14 @@ class TestModelValidation(unittest.TestCase):
             'time_diff': timedelta(hours=6),
         }
 
+        assert is_row_dict(row)
         user = validate_row(row, UserModel)
 
         self.assertEqual(user.name, 'JSON Test User')
         self.assertEqual(user.kv_list, [10, 20, 30])
         self.assertEqual(user.kv_map, {'key1': 100, 'key2': 200})
         self.assertIsInstance(user.kv_obj, UserKV)
+        assert user.kv_obj is not None
         self.assertEqual(user.kv_obj.key, 'json_test')
         self.assertEqual(user.kv_obj.value, 999)
 
@@ -270,6 +275,8 @@ class TestModelValidation(unittest.TestCase):
         self.assertEqual(restored_user.is_admin, original_user.is_admin)
         self.assertEqual(restored_user.kv_list, original_user.kv_list)
         self.assertEqual(restored_user.kv_map, original_user.kv_map)
+        assert restored_user.kv_obj is not None
+        assert original_user.kv_obj is not None
         self.assertEqual(restored_user.kv_obj.key, original_user.kv_obj.key)
         self.assertEqual(restored_user.kv_obj.value, original_user.kv_obj.value)
         self.assertEqual(restored_user.created_at, original_user.created_at)

@@ -1,11 +1,19 @@
 import os
 from decimal import Decimal
-from typing import Any, AsyncGenerator, Dict
+from typing import Annotated, Any, AsyncGenerator, Dict
 
 import pytest
 import pytest_asyncio
+from pydantic import BaseModel
 
 from commondao import Commondao, connect
+from commondao.annotation import TableId
+
+
+class TransactionTest(BaseModel):
+    id: Annotated[int | None, TableId('transaction_test')] = None
+    name: str
+    balance: Decimal
 
 
 class TestTransactions:
@@ -43,81 +51,80 @@ class TestTransactions:
     @pytest.mark.asyncio
     async def test_commit_transaction(self, db: Commondao) -> None:
         # 插入测试数据
-        await db.insert('transaction_test', data={'name': 'Alice', 'balance': 1000.00})
+        entity = TransactionTest(name='Alice', balance=Decimal('1000.00'))
+        await db.insert(entity)
         # 提交事务
         await db.commit()
         # 验证数据已提交
-        result = await db.get_by_key('transaction_test', key={'name': 'Alice'})
+        result = await db.get_by_key(TransactionTest, key={'name': 'Alice'})
         assert result is not None
-        assert result['name'] == 'Alice'
-        # 修复：处理 balance 字段的类型
-        balance = result['balance']
-        assert isinstance(balance, (int, float, Decimal, str))
-        assert float(balance) == 1000.00
+        assert result.name == 'Alice'
+        assert result.balance == Decimal('1000.00')
 
     @pytest.mark.asyncio
     async def test_transaction_rollback(self, db_config: Dict[str, Any]) -> None:
         async with connect(**db_config) as db1:
             # 插入数据但不提交
-            await db1.insert('transaction_test', data={'name': 'Bob', 'balance': 500.00})
+            entity = TransactionTest(name='Bob', balance=Decimal('500.00'))
+            await db1.insert(entity)
             # 在同一连接中可以查询到未提交的数据
-            result = await db1.get_by_key('transaction_test', key={'name': 'Bob'})
+            result = await db1.get_by_key(TransactionTest, key={'name': 'Bob'})
             assert result is not None
-            assert result['name'] == 'Bob'
+            assert result.name == 'Bob'
         # 连接关闭时，事务自动回滚
         # 创建新连接验证数据未提交
         async with connect(**db_config) as db2:
-            result = await db2.get_by_key('transaction_test', key={'name': 'Bob'})
+            result = await db2.get_by_key(TransactionTest, key={'name': 'Bob'})
             assert result is None
 
     @pytest.mark.asyncio
     async def test_multiple_operations_in_transaction(self, db: Commondao) -> None:
         # 执行多个操作，统一提交
-        await db.insert('transaction_test', data={'name': 'Charlie', 'balance': 1500.00})
-        await db.insert('transaction_test', data={'name': 'Dave', 'balance': 2000.00})
+        charlie = TransactionTest(name='Charlie', balance=Decimal('1500.00'))
+        dave = TransactionTest(name='Dave', balance=Decimal('2000.00'))
+        await db.insert(charlie)
+        await db.insert(dave)
         # 更新操作
-        await db.update_by_key('transaction_test', key={'name': 'Charlie'}, data={'balance': 1600.00})
+        updated_charlie = TransactionTest(name='Charlie', balance=Decimal('1600.00'))
+        await db.update_by_key(updated_charlie, key={'name': 'Charlie'})
         # 提交事务
         await db.commit()
         # 验证所有操作都已提交
-        charlie = await db.get_by_key('transaction_test', key={'name': 'Charlie'})
-        dave = await db.get_by_key('transaction_test', key={'name': 'Dave'})
-        assert charlie is not None
-        assert dave is not None
-        # 修复：处理 balance 字段的类型
-        charlie_balance = charlie['balance']
-        dave_balance = dave['balance']
-        assert isinstance(charlie_balance, (int, float, Decimal, str))
-        assert isinstance(dave_balance, (int, float, Decimal, str))
-        assert float(charlie_balance) == 1600.00
-        assert float(dave_balance) == 2000.00
+        charlie_result = await db.get_by_key(TransactionTest, key={'name': 'Charlie'})
+        dave_result = await db.get_by_key(TransactionTest, key={'name': 'Dave'})
+        assert charlie_result is not None
+        assert dave_result is not None
+        assert charlie_result.balance == Decimal('1600.00')
+        assert dave_result.balance == Decimal('2000.00')
 
     @pytest.mark.asyncio
     async def test_lastrowid_after_insert(self, db: Commondao) -> None:
         # 测试插入后获取lastrowid
-        await db.insert('transaction_test', data={'name': 'Eve', 'balance': 3000.00})
+        eve = TransactionTest(name='Eve', balance=Decimal('3000.00'))
+        await db.insert(eve)
         row_id = db.lastrowid()
         assert row_id > 0
         await db.commit()
         # 验证使用获取的ID可以查询到记录
-        result = await db.get_by_key('transaction_test', key={'id': row_id})
+        result = await db.get_by_key(TransactionTest, key={'id': row_id})
         assert result is not None
-        assert result['name'] == 'Eve'
+        assert result.name == 'Eve'
 
     @pytest.mark.asyncio
     async def test_transaction_isolation(self, db_config: Dict[str, Any]) -> None:
         # 在第一个连接中插入数据但不提交
         async with connect(**db_config) as db1:
-            await db1.insert('transaction_test', data={'name': 'Frank', 'balance': 2500.00})
+            frank = TransactionTest(name='Frank', balance=Decimal('2500.00'))
+            await db1.insert(frank)
             # 在第二个连接中无法看到未提交的数据
             async with connect(**db_config) as db2:
-                result = await db2.get_by_key('transaction_test', key={'name': 'Frank'})
+                result = await db2.get_by_key(TransactionTest, key={'name': 'Frank'})
                 assert result is None
             # 现在提交第一个连接中的数据
             await db1.commit()
             # 在新连接中应该能看到提交的数据
             async with connect(**db_config) as db3:
-                result = await db3.get_by_key('transaction_test', key={'name': 'Frank'})
+                result = await db3.get_by_key(TransactionTest, key={'name': 'Frank'})
                 assert result is not None
-                assert result['name'] == 'Frank'
-                assert isinstance(result['balance'], Decimal) and float(result['balance']) == 2500.00
+                assert result.name == 'Frank'
+                assert result.balance == Decimal('2500.00')
