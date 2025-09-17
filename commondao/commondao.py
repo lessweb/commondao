@@ -278,9 +278,41 @@ class Commondao:
         """
         Execute a query and return the result.
 
-        :param sql: The SQL query
-        :param data: The parameters for the query
-        :return: The result of the query. If the query does not return any rows, an empty list is returned.
+        This method executes a parameterized SQL query and returns all matching rows.
+        It uses named parameter placeholders in the SQL string with a colon prefix (e.g., :param_name).
+
+        Args:
+            sql (str): The SQL query string with named parameter placeholders.
+                      Use :param_name format for parameters (e.g., "SELECT * FROM users WHERE id = :user_id").
+            data (Mapping[str, Any], optional): A dictionary mapping parameter names to their values.
+                                              Keys should match the parameter names in the SQL (without the colon).
+                                              Defaults to empty mapping.
+
+        Returns:
+            list: A list of rows returned by the query. Each row is typically a dictionary-like object.
+                 Returns an empty list if no rows match the query.
+
+        Examples:
+            # Simple query without parameters
+            result = await db.execute_query("SELECT * FROM users")
+
+            # Query with single parameter
+            result = await db.execute_query(
+                "SELECT * FROM users WHERE id = :user_id",
+                {"user_id": 123}
+            )
+
+            # Query with multiple parameters
+            result = await db.execute_query(
+                "SELECT * FROM users WHERE name = :name AND age > :min_age",
+                {"name": "John", "min_age": 18}
+            )
+
+            # Query with IN clause (using list parameter)
+            result = await db.execute_query(
+                "SELECT * FROM users WHERE id IN :user_ids",
+                {"user_ids": [1, 2, 3, 4]}
+            )
         """
         cursor = self.cur
         logging.debug(sql)
@@ -291,11 +323,52 @@ class Commondao:
 
     async def execute_mutation(self, sql: str, data: typing.Mapping[str, typing.Any] = MappingProxyType({})) -> int:
         """
-        Execute a mutation and return the number of affected rows.
+        Execute a mutation (INSERT, UPDATE, DELETE) and return the number of affected rows.
 
-        :param sql: The SQL query
-        :param data: The parameters for the query
-        :return: The number of rows affected by the mutation
+        This method executes a parameterized SQL mutation statement and returns the count of affected rows.
+        It uses named parameter placeholders in the SQL string with a colon prefix (e.g., :param_name).
+
+        Args:
+            sql (str): The SQL mutation statement with named parameter placeholders.
+                      Use :param_name format for parameters (e.g., "UPDATE users SET name = :name WHERE id = :id").
+            data (Mapping[str, Any], optional): A dictionary mapping parameter names to their values.
+                                              Keys should match the parameter names in the SQL (without the colon).
+                                              Defaults to empty mapping.
+
+        Returns:
+            int: The number of rows affected by the mutation. Returns 0 if no rows were affected.
+
+        Examples:
+            # INSERT statement
+            affected = await db.execute_mutation(
+                "INSERT INTO users (name, email, age) VALUES (:name, :email, :age)",
+                {"name": "John", "email": "john@example.com", "age": 25}
+            )
+
+            # UPDATE statement
+            affected = await db.execute_mutation(
+                "UPDATE users SET email = :new_email WHERE id = :user_id",
+                {"new_email": "newemail@example.com", "user_id": 123}
+            )
+
+            # DELETE statement
+            affected = await db.execute_mutation(
+                "DELETE FROM users WHERE age < :min_age",
+                {"min_age": 18}
+            )
+
+            # Multiple parameter UPDATE
+            affected = await db.execute_mutation(
+                "UPDATE users SET name = :name, age = :age WHERE id = :id",
+                {"name": "Jane", "age": 30, "id": 456}
+            )
+
+            # Bulk INSERT with multiple executions
+            for user_data in user_list:
+                affected = await db.execute_mutation(
+                    "INSERT INTO users (name, email) VALUES (:name, :email)",
+                    user_data
+                )
         """
         cursor = self.cur
         logging.debug(sql)

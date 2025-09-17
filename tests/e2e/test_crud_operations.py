@@ -5,7 +5,7 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel
 
-from commondao import Commondao, connect, NotFoundError, is_row_dict
+from commondao import Commondao, connect, NotFoundError, EmptyPrimaryKeyError, is_row_dict
 from commondao.annotation import TableId
 
 
@@ -225,3 +225,121 @@ class TestCRUDOperations:
         result = await db.get_by_key(User, key={'name': 'Kate', 'age': 29})
         assert result is not None
         assert result.email == 'kate2@example.com'
+
+    @pytest.mark.asyncio
+    async def test_update_by_id(self, db: Commondao) -> None:
+        # 插入测试数据
+        user = User(name='Luke', email='luke@example.com', age=35)
+        await db.insert(user)
+        # 获取插入后的ID
+        result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Luke'")
+        assert len(result) == 1
+        assert is_row_dict(result[0])
+        user_id = result[0]['id']
+        # 通过ID更新数据
+        updated_user = User(id=user_id, name='Luke Updated', email='luke.updated@example.com', age=36)
+        affected_rows = await db.update_by_id(updated_user)
+        assert affected_rows == 1
+        # 验证数据已更新
+        result = await db.execute_query("SELECT * FROM test_users WHERE id = :id", {'id': user_id})
+        assert len(result) == 1
+        assert is_row_dict(result[0])
+        assert result[0]['name'] == 'Luke Updated'
+        assert result[0]['email'] == 'luke.updated@example.com'
+        assert result[0]['age'] == 36
+
+    @pytest.mark.asyncio
+    async def test_update_by_id_with_none_values(self, db: Commondao) -> None:
+        # 插入测试数据
+        user = User(name='Maria', email='maria@example.com', age=25)
+        await db.insert(user)
+        # 获取插入后的ID
+        result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Maria'")
+        assert len(result) == 1
+        assert is_row_dict(result[0])
+        user_id = result[0]['id']
+        # 使用包含None值的数据更新（exclude_none=True，所以None值会被跳过）
+        updated_user = User(id=user_id, name='Maria Updated', email='maria.updated@example.com', age=None)
+        affected_rows = await db.update_by_id(updated_user)
+        assert affected_rows == 1
+        # 验证数据已更新，但age保持原值未变
+        result = await db.execute_query("SELECT * FROM test_users WHERE id = :id", {'id': user_id})
+        assert len(result) == 1
+        assert is_row_dict(result[0])
+        assert result[0]['name'] == 'Maria Updated'
+        assert result[0]['email'] == 'maria.updated@example.com'
+        assert result[0]['age'] == 25  # age保持原值，因为update_by_id跳过None值
+
+    @pytest.mark.asyncio
+    async def test_update_by_id_nonexistent(self, db: Commondao) -> None:
+        # 尝试更新不存在的记录
+        updated_user = User(id=99999, name='NonExistent', email='new@example.com', age=50)
+        affected_rows = await db.update_by_id(updated_user)
+        assert affected_rows == 0
+
+    @pytest.mark.asyncio
+    async def test_update_by_id_empty_primary_key(self, db: Commondao) -> None:
+        # 测试空的主键应该抛出异常
+        updated_user = User(id=None, name='EmptyPK', email='empty@example.com', age=30)
+        with pytest.raises(EmptyPrimaryKeyError):
+            await db.update_by_id(updated_user)
+
+    @pytest.mark.asyncio
+    async def test_get_by_id(self, db: Commondao) -> None:
+        # 插入测试数据
+        user = User(name='Nina', email='nina@example.com', age=30)
+        await db.insert(user)
+        # 获取插入后的ID
+        result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Nina'")
+        assert len(result) == 1
+        assert is_row_dict(result[0])
+        user_id = result[0]['id']
+        # 通过ID获取数据
+        retrieved_user = await db.get_by_id(User, key={'id': user_id})
+        # 验证结果
+        assert retrieved_user is not None
+        assert retrieved_user.name == 'Nina'
+        assert retrieved_user.email == 'nina@example.com'
+        assert retrieved_user.age == 30
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_nonexistent(self, db: Commondao) -> None:
+        # 尝试获取不存在的记录
+        result = await db.get_by_id(User, key={'id': 99999})
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_none_primary_key(self, db: Commondao) -> None:
+        # 测试None主键应该抛出断言异常
+        with pytest.raises(AssertionError):
+            await db.get_by_id(User, key={'id': None})
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_or_fail(self, db: Commondao) -> None:
+        # 插入测试数据
+        user = User(name='Oscar', email='oscar@example.com', age=40)
+        await db.insert(user)
+        # 获取插入后的ID
+        result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Oscar'")
+        assert len(result) == 1
+        assert is_row_dict(result[0])
+        user_id = result[0]['id']
+        # 通过ID获取数据
+        retrieved_user = await db.get_by_id_or_fail(User, key={'id': user_id})
+        # 验证结果
+        assert retrieved_user is not None
+        assert retrieved_user.name == 'Oscar'
+        assert retrieved_user.email == 'oscar@example.com'
+        assert retrieved_user.age == 40
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_or_fail_nonexistent(self, db: Commondao) -> None:
+        # 尝试获取不存在的记录，应抛出NotFoundError
+        with pytest.raises(NotFoundError):
+            await db.get_by_id_or_fail(User, key={'id': 99999})
+
+    @pytest.mark.asyncio
+    async def test_get_by_id_or_fail_none_primary_key(self, db: Commondao) -> None:
+        # 测试None主键应该抛出断言异常
+        with pytest.raises(AssertionError):
+            await db.get_by_id_or_fail(User, key={'id': None})

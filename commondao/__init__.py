@@ -4,7 +4,6 @@ from importlib import import_module
 if typing.TYPE_CHECKING:
     from .commondao import (
         Commondao,
-        NotFoundError,
         Paged,
         QueryDict,
         RawSql,
@@ -13,10 +12,21 @@ if typing.TYPE_CHECKING:
         is_query_dict,
         is_row_dict,
     )
+    from .error import (
+        NotFoundError,
+        NotTableError,
+        MissingParamError,
+        TooManyResultError,
+        EmptyPrimaryKeyError,
+    )
 
 __all__ = (
     "Commondao",
     "NotFoundError",
+    "NotTableError",
+    "MissingParamError",
+    "TooManyResultError",
+    "EmptyPrimaryKeyError",
     "Paged",
     "QueryDict",
     "RawSql",
@@ -29,7 +39,11 @@ __all__ = (
 # A mapping of {<member name>: (package, <module name>)} defining dynamic imports
 _dynamic_imports: 'dict[str, tuple[str|None, str]]' = {
     "Commondao": (__name__, ".commondao"),
-    "NotFoundError": (__name__, ".commondao"),
+    "NotFoundError": (__name__, ".error"),
+    "NotTableError": (__name__, ".error"),
+    "MissingParamError": (__name__, ".error"),
+    "TooManyResultError": (__name__, ".error"),
+    "EmptyPrimaryKeyError": (__name__, ".error"),
     "Paged": (__name__, ".commondao"),
     "QueryDict": (__name__, ".commondao"),
     "RawSql": (__name__, ".commondao"),

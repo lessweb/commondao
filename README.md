@@ -182,17 +182,109 @@ print(f"Current page: {len(result.items)} users")
 
 ### Raw SQL Execution
 
+CommonDAO supports parameterized SQL queries using named parameters with the `:parameter_name` format for secure and readable queries.
+
+#### execute_query - For SELECT operations
+
 ```python
-# Execute a query and return results
-rows = await db.execute_query(
-    "SELECT * FROM users WHERE created_at > :date",
-    {"date": "2023-01-01"}
+# Simple query without parameters
+rows = await db.execute_query("SELECT * FROM users")
+
+# Query with single parameter
+user_rows = await db.execute_query(
+    "SELECT * FROM users WHERE id = :user_id",
+    {"user_id": 123}
 )
 
-# Execute a mutation and return affected row count
+# Query with multiple parameters
+filtered_rows = await db.execute_query(
+    "SELECT * FROM users WHERE name = :name AND age > :min_age",
+    {"name": "John", "min_age": 18}
+)
+
+# Query with IN clause (using list parameter)
+users_in_group = await db.execute_query(
+    "SELECT * FROM users WHERE id IN :user_ids",
+    {"user_ids": [1, 2, 3, 4]}
+)
+
+# Complex query with date filtering
+recent_users = await db.execute_query(
+    "SELECT * FROM users WHERE created_at > :date AND status = :status",
+    {"date": "2023-01-01", "status": "active"}
+)
+```
+
+#### execute_mutation - For INSERT, UPDATE, DELETE operations
+
+```python
+# INSERT statement
 affected = await db.execute_mutation(
-    "UPDATE users SET status = :status WHERE last_login < :cutoff",
-    {"status": "inactive", "cutoff": "2023-01-01"}
+    "INSERT INTO users (name, email, age) VALUES (:name, :email, :age)",
+    {"name": "John", "email": "john@example.com", "age": 25}
+)
+print(f"Inserted {affected} rows")
+
+# UPDATE statement
+affected = await db.execute_mutation(
+    "UPDATE users SET email = :new_email WHERE id = :user_id",
+    {"new_email": "newemail@example.com", "user_id": 123}
+)
+print(f"Updated {affected} rows")
+
+# DELETE statement
+affected = await db.execute_mutation(
+    "DELETE FROM users WHERE age < :min_age",
+    {"min_age": 18}
+)
+print(f"Deleted {affected} rows")
+
+# Multiple parameter UPDATE
+affected = await db.execute_mutation(
+    "UPDATE users SET name = :name, age = :age WHERE id = :id",
+    {"name": "Jane", "age": 30, "id": 456}
+)
+
+# Bulk operations with loop
+user_list = [
+    {"name": "Alice", "email": "alice@example.com"},
+    {"name": "Bob", "email": "bob@example.com"},
+]
+
+for user_data in user_list:
+    affected = await db.execute_mutation(
+        "INSERT INTO users (name, email) VALUES (:name, :email)",
+        user_data
+    )
+```
+
+#### Parameter Format Rules
+
+- **Named Parameters**: Use `:parameter_name` format in SQL
+- **Dictionary Keys**: Match parameter names without the colon prefix
+- **Supported Types**: str, int, float, bytes, datetime, date, time, timedelta, Decimal
+- **Lists/Tuples**: Supported for IN clauses in queries
+- **None Values**: Properly handled as SQL NULL
+
+```python
+# Example with various data types
+from datetime import datetime, date
+from decimal import Decimal
+
+result = await db.execute_query(
+    """
+    SELECT * FROM orders
+    WHERE customer_id = :customer_id
+    AND total >= :min_total
+    AND created_date = :order_date
+    AND status IN :valid_statuses
+    """,
+    {
+        "customer_id": 123,
+        "min_total": Decimal("99.99"),
+        "order_date": date(2023, 12, 25),
+        "valid_statuses": ["pending", "confirmed", "shipped"]
+    }
 )
 ```
 
