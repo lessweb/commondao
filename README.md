@@ -31,11 +31,13 @@ pip install commondao
 ```python
 import asyncio
 from commondao import connect
+from commondao.annotation import TableId
 from pydantic import BaseModel
+from typing import Annotated
 
-# Define your Pydantic model
+# Define your Pydantic model with TableId annotation
 class User(BaseModel):
-    id: int
+    id: Annotated[int, TableId('users')]  # First field with TableId is the primary key
     name: str
     email: str
 
@@ -49,17 +51,16 @@ async def main():
         'db': 'testdb',
         'autocommit': True,
     }
-    
+
     async with connect(**config) as db:
-        # Insert a new user
-        await db.insert('users', data={'name': 'John Doe', 'email': 'john@example.com'})
-        # Query the user with Pydantic model validation
-        user = await db.select_one(
-            "select * from users where email = :email",
-            User,
-            {"email": "john@example.com"}
-        )
-        print(f"User: {user.name} ({user.email})")  # Output => User: John Doe (john@example.com)
+        # Insert a new user using Pydantic model
+        user = User(id=1, name='John Doe', email='john@example.com')
+        await db.insert(user)
+
+        # Query the user by key with Pydantic model validation
+        result = await db.get_by_key(User, key={'email': 'john@example.com'})
+        if result:
+            print(f"User: {result.name} ({result.email})")  # Output => User: John Doe (john@example.com)
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -83,49 +84,61 @@ async with connect(
     pass
 ```
 
-### Insert Data
+### Insert Data (with Pydantic Models)
 
 ```python
-# Simple insert
-await db.insert('users', data={'name': 'John', 'email': 'john@example.com'})
+from pydantic import BaseModel
+from commondao.annotation import TableId
+from typing import Annotated, Optional
+
+class User(BaseModel):
+    id: Annotated[Optional[int], TableId('users')] = None  # Auto-increment primary key
+    name: str
+    email: str
+
+# Insert using Pydantic model (id will be auto-generated)
+user = User(name='John', email='john@example.com')
+await db.insert(user)
+print(f"New user id: {db.lastrowid()}")  # Get the auto-generated id
 
 # Insert with ignore option (skips duplicate key errors)
-await db.insert('users', data={'name': 'Jane', 'email': 'jane@example.com'}, ignore=True)
+user2 = User(name='Jane', email='jane@example.com')
+await db.insert(user2, ignore=True)
 ```
 
-### Update Data
+### Update Data (with Pydantic Models)
 
 ```python
-# Update where id = 1
-await db.update_by_key(
-    'users', 
-    key={'id': 1}, 
-    data={'name': 'John Smith', 'email': 'john.smith@example.com'}
-)
+# Update by primary key (id must be provided)
+user = User(id=1, name='John Smith', email='john.smith@example.com')
+await db.update_by_id(user)
 
-# Only non-None values will be updated
-await db.update_by_key(
-    'users',
-    key={'id': 1},
-    data={'name': 'Jane Doe', 'email': None}  # email won't be updated
-)
+# Update by custom key (partial update - only non-None fields)
+user_update = User(name='Jane Doe', email='jane.doe@example.com')  # id can be None
+await db.update_by_key(user_update, key={'email': 'john.smith@example.com'})
 ```
 
 ### Delete Data
 
 ```python
-# Delete where id = 1
-await db.delete_by_key('users', key={'id': 1})
+# Delete by key using entity class
+await db.delete_by_key(User, key={'id': 1})
 ```
 
 ### Query Data
 
 ```python
-# Get a single row
-user = await db.get_by_key('users', key={'id': 1})
+# Get a single row by id
+user = await db.get_by_id(User, key={'id': 1})
 
-# Get a row or raise NotFoundError if not found
-user = await db.get_by_key_or_fail('users', key={'id': 1})
+# Get a row by id or raise NotFoundError if not found
+user = await db.get_by_id_or_fail(User, key={'id': 1})
+
+# Get by custom key
+user = await db.get_by_key(User, key={'email': 'john@example.com'})
+
+# Get by key or raise NotFoundError if not found
+user = await db.get_by_key_or_fail(User, key={'email': 'john@example.com'})
 
 # Use with Pydantic models
 from pydantic import BaseModel
@@ -186,10 +199,28 @@ affected = await db.execute_mutation(
 ### Transactions
 
 ```python
+from commondao.annotation import TableId
+from typing import Annotated, Optional
+
+class Order(BaseModel):
+    id: Annotated[Optional[int], TableId('orders')] = None
+    customer_id: int
+    total: float
+
+class OrderItem(BaseModel):
+    id: Annotated[Optional[int], TableId('order_items')] = None
+    order_id: int
+    product_id: int
+
 async with connect(host='localhost', user='root', db='testdb') as db:
     # Start transaction (autocommit=False by default)
-    await db.insert('orders', data={'customer_id': 1, 'total': 99.99})
-    await db.insert('order_items', data={'order_id': db.lastrowid(), 'product_id': 42})
+    order = Order(customer_id=1, total=99.99)
+    await db.insert(order)
+    order_id = db.lastrowid()  # Get the auto-generated order id
+
+    item = OrderItem(order_id=order_id, product_id=42)
+    await db.insert(item)
+
     # Commit the transaction
     await db.commit()
 ```
@@ -201,6 +232,7 @@ CommonDAO provides robust type checking to help prevent errors:
 ```python
 from commondao import is_row_dict, is_query_dict
 from typing import Dict, Any
+from datetime import datetime
 
 # Valid row dict (for updates/inserts)
 valid_data: Dict[str, Any] = {
@@ -211,7 +243,16 @@ valid_data: Dict[str, Any] = {
 
 # Check type safety
 assert is_row_dict(valid_data)  # Type check passes
-await db.update_by_key('users', key={'id': 1}, data=valid_data)  # Type check passes
+
+# Valid query dict (can contain lists/tuples for IN clauses)
+valid_query: Dict[str, Any] = {
+    "id": 1,
+    "status": "active",
+    "tags": ["admin", "user"],  # Lists are valid for query dicts
+    "codes": (200, 201)  # Tuples are also valid
+}
+
+assert is_query_dict(valid_query)  # Type check passes
 
 # Invalid row dict (contains a list)
 invalid_data: Dict[str, Any] = {

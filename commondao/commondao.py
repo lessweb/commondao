@@ -5,6 +5,7 @@ import typing
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from enum import Enum
 from re import Match
 from types import MappingProxyType
 from typing import Any, Mapping, Optional, Type, Union
@@ -13,6 +14,14 @@ import aiomysql  # type: ignore
 import orjson
 from aiomysql import DictCursor
 from pydantic import BaseModel
+
+from commondao.annotation import RawSql, TableId
+from commondao.error import (
+    EmptyPrimaryKeyError,
+    NotFoundError,
+    NotTableError,
+    TooManyResultError,
+)
 
 RowValueNotNull = Union[
     str,
@@ -151,15 +160,6 @@ class Paged(typing.Generic[T]):
     total: Optional[int] = None
 
 
-@dataclass
-class RawSql:
-    sql: str
-
-
-class NotFoundError(Exception):
-    pass
-
-
 def script(*segs) -> str:
     return ' '.join(seg or '' for seg in segs)
 
@@ -180,16 +180,40 @@ def where(*segs) -> str:
     return f'where {sql} ' if sql else ''
 
 
-U = typing.TypeVar("U", bound=BaseModel)
+M = typing.TypeVar("M", bound=BaseModel)
 
 
-def validate_row(row: RowDict, model: Type[U]) -> U:
+def get_table_meta(model: Type[M]) -> tuple[str, TableId]:
+    model_fields = model.model_fields
+    for field_name, info in model_fields.items():
+        for metadata in info.metadata:
+            if isinstance(metadata, TableId):
+                return field_name, metadata
+    raise NotTableError(f'Model {model.__name__} is not configured as a table entity. Add TableId annotation to define the table mapping.')
+
+
+def dump_entity_to_row(entity: BaseModel, *, exclude_none: bool) -> RowDict:
+    data = entity.model_dump(exclude_none=exclude_none)
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        if isinstance(value, (dict, list)):
+            result[key] = orjson.dumps(value)
+        elif isinstance(value, Enum):
+            result[key] = value.value
+        else:
+            result[key] = value
+    return result
+
+
+def validate_row(row: RowDict, model: Type[M]) -> M:
     data: dict[str, Any] = {}
     model_fields = model.model_fields
     for row_key, row_value in row.items():
-        tp = model_fields[row_key].annotation
+        if row_key not in model_fields:
+            continue
         # If the DB column type is JSON, but aiomysql will return it as a Python str
         if isinstance(row_value, str):
+            tp = model_fields[row_key].annotation
             if (inspect.isclass(tp) and issubclass(tp, str)) or tp == Union[str, None]:
                 data[row_key] = row_value
             else:
@@ -281,210 +305,106 @@ class Commondao:
         logging.debug('execute result rowcount: %s', cursor.rowcount)
         return cursor.rowcount
 
-    async def insert(self, tablename: str, *, data: RowDict, ignore=False) -> int:
+    async def insert(self, entity: BaseModel, *, ignore=False) -> int:
         """
         Insert a new row into the specified table.
 
-        This method constructs and executes an INSERT statement using the provided data.
-        Only non-None values from the data dictionary are included in the insertion.
-        The method supports both regular INSERT and INSERT IGNORE operations.
-
-        :param tablename: The name of the table to insert into
-        :param data: A dictionary containing column names as keys and their corresponding
-                    values to insert. None values are automatically filtered out.
         :param ignore: If True, uses INSERT IGNORE to skip rows that would cause
                     duplicate key errors. If False (default), uses regular INSERT.
         :return: The number of rows affected by the insertion (typically 1 for success,
                 0 for INSERT IGNORE when a duplicate is skipped)
 
-        Example:
-            >>> await db.insert('users', data={'name': 'John', 'email': 'john@example.com'})
-            1
-            >>> await db.insert('users', data={'name': 'Jane', 'email': None}, ignore=True)
-            1
+        Note: RawSql metadata is not supported in insert()
         """
-        selected_data = {
-            key: value
-            for key, value in data.items() if value is not None
-        }
+        _, table_meta = get_table_meta(entity.__class__)
+        data = dump_entity_to_row(entity, exclude_none=True)
         sql = script(
             ('insert into' if not ignore else 'insert ignore into'),
-            tablename,
+            table_meta.tablename,
             '(',
-            join(*[f'`{key}`' for key in selected_data.keys()]),
+            join(*[f'`{key}`' for key in data.keys()]),
             ') values (',
-            join(*[f':{key}' for key in selected_data.keys()]),
+            join(*[f':{key}' for key in data.keys()]),
             ')',
         )
-        return await self.execute_mutation(sql, selected_data)
+        return await self.execute_mutation(sql, data)
 
-    async def update_by_key(self, tablename, *, key: QueryDict, data: RowDict) -> int:
-        """
-        Update database records by key condition.
-
-        Updates rows in the specified table where the key columns match the provided
-        key values. Only non-None values in the data dictionary are included in the
-        UPDATE statement.
-
-        Args:
-            tablename (str): Name of the database table to update
-            key (QueryDict): Dictionary containing the key-value pairs that identify
-                which rows to update. Keys are column names and values are the
-                conditions that must match.
-            data (RowDict): Dictionary containing the column-value pairs to update.
-                Only keys with non-None values will be included in the UPDATE statement.
-                If all values are None, no update is performed.
-
-        Returns:
-            int: Number of rows affected by the update operation.
-
-        Example:
-            ```python
-            # Update user's name and email where id=1
-            affected_rows = await db.update_by_key(
-                'users',
-                key={'id': 1},
-                data={'name': 'John Smith', 'email': 'john@example.com'}
-            )
-
-            # Update only non-None values
-            affected_rows = await db.update_by_key(
-                'users',
-                key={'id': 1},
-                data={'name': 'Jane Doe', 'email': None}  # email won't be updated
-            )
-
-            # Update with composite key
-            affected_rows = await db.update_by_key(
-                'user_settings',
-                key={'user_id': 1, 'setting_type': 'theme'},
-                data={'setting_value': 'dark'}
-            )
-            ```
-
-        Note:
-            - Column names in both key and data are automatically escaped with backticks
-            - The method filters out None values from data before building the SQL
-            - If data contains only None values, the method returns 0 without executing SQL
-            - Uses parameterized queries to prevent SQL injection
-        """
-        selected_data = {
-            key: value
-            for key, value in data.items() if value is not None
-        }
-        if not selected_data:
+    async def update_by_id(self, entity: BaseModel) -> int:
+        pk, table_meta = get_table_meta(entity.__class__)
+        data = dump_entity_to_row(entity, exclude_none=True)
+        pk_value = data.get(pk)
+        if not pk_value:
+            raise EmptyPrimaryKeyError(f'Primary key "{pk}" cannot be empty for {entity.__class__.__name__} instance. Provide a valid primary key value.')
+        del data[pk]  # type: ignore
+        if not data:
             return 0
         sql = script(
             'update',
-            tablename,
+            table_meta.tablename,
             'set',
-            join(*[f'`{k}`=:{k}' for k in selected_data.keys()], ),
+            join(*[f'`{k}`=:{k}' for k in data.keys()], ),
+            'where',
+            f'`{pk}`=:{pk}',
+        )
+        return await self.execute_mutation(sql, {**data, **{pk: pk_value}})
+
+    async def update_by_key(self, entity: BaseModel, *, key: QueryDict) -> int:
+        _, table_meta = get_table_meta(entity.__class__)
+        data = dump_entity_to_row(entity, exclude_none=True)
+        if not data:
+            return 0
+        sql = script(
+            'update',
+            table_meta.tablename,
+            'set',
+            join(*[f'`{k}`=:{k}' for k in data.keys()], ),
             'where',
             and_(*[f'`{k}`=:{k}' for k in key.keys()]),
         )
         return await self.execute_mutation(sql, {**data, **key})
 
-    async def delete_by_key(self, tablename, *, key: QueryDict) -> int:
-        """
-        Delete rows from the specified table matching the given key.
-
-        This method constructs and executes a DELETE statement to remove rows
-        from the table where the columns specified in the key match the provided
-        values. The key values are automatically escaped with backticks.
-
-        :param tablename: The name of the table from which to delete rows.
-        :param key: A dictionary containing column names as keys and their
-                    corresponding values to match for deletion.
-        :return: The number of rows affected by the deletion.
-        """
+    async def delete_by_key(self, entity_class: Type[M], *, key: QueryDict) -> int:
+        _, table_meta = get_table_meta(entity_class)
         sql = script(
             'delete from',
-            tablename,
+            table_meta.tablename,
             'where',
             and_(*[f'`{k}`=:{k}' for k in key.keys()]),
         )
         return await self.execute_mutation(sql, key)
 
-    async def get_by_key(self, tablename, *, key: QueryDict) -> Optional[RowDict]:
-        """
-        Retrieve a single row from the specified table by matching key-value pairs.
+    async def get_by_id(self, entity_class: Type[M], *, key: QueryDict) -> Optional[M]:
+        pk, _ = get_table_meta(entity_class)
+        assert key.get(pk) is not None, f'Primary key {pk} value is None in {entity_class.__name__}'
+        return await self.get_by_key(entity_class, key=key)
 
-        This method executes a SELECT query to find a row where all key-value pairs match
-        the corresponding columns in the table. If multiple rows match the criteria, only
-        the first one is returned due to the LIMIT 1 clause.
+    async def get_by_id_or_fail(self, entity_class: Type[M], *, key: QueryDict) -> M:
+        pk, _ = get_table_meta(entity_class)
+        assert key.get(pk) is not None, f'Primary key {pk} value is None in {entity_class.__name__}'
+        return await self.get_by_key_or_fail(entity_class, key=key)
 
-        Args:
-            tablename (str): The name of the database table to query.
-            key (QueryDict): A dictionary where keys are column names and values are the
-                values to match against. All key-value pairs are combined with AND logic.
-                Values can be strings, integers, floats, Decimal, bytes, datetime objects,
-                date, time, timedelta, or None.
-
-        Returns:
-            Optional[RowDict]: A dictionary representing the found row where keys are
-                column names and values are the corresponding database values. Returns
-                None if no matching row is found.
-
-        Example:
-            ```python
-            # Find a user by ID
-            user = await db.get_by_key('users', key={'id': 123})
-            if user:
-                print(f"Found user: {user['name']}")
-            else:
-                print("User not found")
-
-            # Find a record by multiple keys
-            record = await db.get_by_key('orders', key={'user_id': 123, 'status': 'active'})
-            ```
-
-        Note:
-            - The method uses parameterized queries to prevent SQL injection.
-            - Column names in the key dictionary are automatically escaped with backticks.
-            - If you need to raise an exception when no row is found, use `get_by_key_or_fail` instead.
-        """
-        sql = script('select * from', tablename,
-                     where(and_(*[f'`{k}`=:{k}' for k in key.keys()])),
-                     'limit 1')
-        rows = await self.execute_query(sql, key)
-        return rows[0] if rows else None
-
-    async def get_by_key_or_fail(self, tablename, *, key: QueryDict) -> RowDict:
-        """
-        Retrieve a single row from the specified table by matching key-value pairs.
-
-        This method executes a SELECT query to find a row where all key-value pairs match
-        the corresponding columns in the table. If no matching row is found, raises
-        commondao.NotFoundError.
-
-        :param tablename: The name of the database table to query.
-        :param key: A dictionary where keys are column names and values are the
-            values to match against. All key-value pairs are combined with AND logic.
-            Values can be strings, integers, floats, Decimal, bytes, datetime objects,
-            date, time, timedelta, or None.
-        :return: A dictionary representing the found row where keys are column names
-            and values are the corresponding database values.
-
-        Example:
-            >>> await db.get_by_key_or_fail('users', key={'id': 123})
-            {'id': 123, 'name': 'John Doe', ...}
-
-        Note:
-            - The method uses parameterized queries to prevent SQL injection.
-            - Column names in the key dictionary are automatically escaped with backticks.
-            - If you want to allow the query to return None if no row is found, use
-              `get_by_key` instead.
-        """
-        sql = script('select * from', tablename,
+    async def get_by_key(self, entity_class: Type[M], *, key: QueryDict) -> Optional[M]:
+        _, table_meta = get_table_meta(entity_class)
+        sql = script('select * from', table_meta.tablename,
                      where(and_(*[f'`{k}`=:{k}' for k in key.keys()])),
                      'limit 1')
         rows = await self.execute_query(sql, key)
         if not rows:
-            raise NotFoundError
-        return rows[0]
+            return None
+        return validate_row(rows[0], entity_class)
+
+    async def get_by_key_or_fail(self, entity_class: Type[M], *, key: QueryDict) -> M:
+        _, table_meta = get_table_meta(entity_class)
+        sql = script('select * from', table_meta.tablename,
+                     where(and_(*[f'`{k}`=:{k}' for k in key.keys()])),
+                     'limit 1')
+        rows = await self.execute_query(sql, key)
+        if not rows:
+            raise NotFoundError(f'No {entity_class.__name__} instance found matching the query criteria: {key}')
+        return validate_row(rows[0], entity_class)
 
     # async def select_one(self, sql, select: Type[U], data: QueryDict = MappingProxyType({})) -> Optional[U]:
-    async def select_one(self, sql, select: Type[U], data: QueryDict = MappingProxyType({})) -> Optional[U]:
+    async def select_one(self, sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> Optional[M]:
         """
         Execute a SELECT query and return the first row as a validated Pydantic model instance.
 
@@ -510,6 +430,7 @@ class Commondao:
 
         Raises:
             ValidationError: If the returned row data doesn't match the Pydantic model schema.
+            TooManyRowsError: If more than one row is returned by the query.
 
         Example:
             ```python
@@ -537,7 +458,6 @@ class Commondao:
             ```
 
         Note:
-            - The method automatically adds 'LIMIT 1' to ensure only one row is returned
             - Column selection is based on the Pydantic model fields, not the '*' in the SQL
             - Raw SQL expressions can be used through RawSql metadata on model fields
         """
@@ -553,12 +473,15 @@ class Commondao:
                 select_items.append(f'`{name}`')
             # end-for
         select_clause = 'select %s from ' % ', '.join(select_items)
-        sql = f'{select_clause} {headless_sql} limit 1'
+        sql = f'{select_clause} {headless_sql}'
         rows = await self.execute_query(sql, data)
-        models = [validate_row(row, select) for row in rows]
-        return models[0] if models else None
+        if len(rows) > 1:
+            raise TooManyResultError(f'Query returned {len(rows)} results for {select.__name__}. Use select_all() for multiple results.')
+        if not rows:
+            return None
+        return validate_row(rows[0], select)
 
-    async def select_one_or_fail(self, sql, select: Type[U], data: QueryDict = MappingProxyType({})) -> U:
+    async def select_one_or_fail(self, sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> M:
         """
         Execute a SELECT query and return the first row as a validated Pydantic model instance.
 
@@ -584,14 +507,15 @@ class Commondao:
                 select_items.append(f'`{name}`')
             # end-for
         select_clause = 'select %s from ' % ', '.join(select_items)
-        sql = f'{select_clause} {headless_sql} limit 1'
+        sql = f'{select_clause} {headless_sql}'
         rows = await self.execute_query(sql, data)
         if not rows:
-            raise NotFoundError
-        models = [validate_row(row, select) for row in rows]
-        return models[0]
+            raise NotFoundError(f'No {select.__name__} instance found matching the query criteria.')
+        if len(rows) > 1:
+            raise TooManyResultError(f'Query returned {len(rows)} results for {select.__name__}, but expected exactly 1. Use select_all() for multiple results.')
+        return validate_row(rows[0], select)
 
-    async def select_all(self, sql, select: Type[U], data: QueryDict = MappingProxyType({})) -> list[U]:
+    async def select_all(self, sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> list[M]:
         """
         Execute a SELECT query and return all rows as validated Pydantic model instances.
 
@@ -638,12 +562,12 @@ class Commondao:
     async def select_paged(
         self,
         sql: str,
-        select: Type[U],
+        select: Type[M],
         data: QueryDict,
         *,
         size: int,
         offset: int = 0,
-    ) -> Paged[U]:
+    ) -> Paged[M]:
         """
         Execute a paginated SELECT query and return a Paged object containing the results.
 
