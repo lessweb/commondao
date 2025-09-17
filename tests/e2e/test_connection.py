@@ -2,9 +2,11 @@ import os
 
 import pytest
 import pytest_asyncio
+from typing import Optional, Annotated
 from pydantic import BaseModel
 
 from commondao.commondao import connect
+from commondao.annotation import TableId
 
 
 class DbConfig:
@@ -19,9 +21,10 @@ class DbConfig:
 
 class User(BaseModel):
     """用户模型，用于测试数据验证"""
-    id: int
+    id: Annotated[Optional[int], TableId('test_users')] = None
     name: str
     email: str
+    age: Optional[int] = None
 
 
 @pytest_asyncio.fixture
@@ -43,14 +46,16 @@ async def setup_test_table():
             CREATE TABLE IF NOT EXISTS test_users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
-                email VARCHAR(100) NOT NULL
+                email VARCHAR(100) NOT NULL,
+                age INT
             )
         """)
         # 验证表已创建
         verify = await db.execute_query("SHOW TABLES LIKE 'test_users'")
         assert verify, "测试表未能成功创建"
         # 插入测试数据
-        await db.insert('test_users', data={'name': 'Test User', 'email': 'test@example.com'})
+        test_user = User(name='Test User', email='test@example.com')
+        await db.insert(test_user)
 
     yield
 
@@ -89,19 +94,21 @@ async def test_basic_operations(setup_test_table):
     }
     async with connect(**db_config) as db:
         # 测试插入
-        await db.insert('test_users', data={'name': 'John Doe', 'email': 'john@example.com'})
+        john_user = User(name='John Doe', email='john@example.com')
+        await db.insert(john_user)
         # 测试查询
-        user = await db.get_by_key('test_users', key={'name': 'John Doe'})
+        user = await db.get_by_key(User, key={'name': 'John Doe'})
         assert user is not None
-        assert user['name'] == 'John Doe'
-        assert user['email'] == 'john@example.com'
+        assert user.name == 'John Doe'
+        assert user.email == 'john@example.com'
         # 测试更新
-        await db.update_by_key('test_users', key={'id': user['id']}, data={'name': 'Jane Doe'})
-        updated_user = await db.get_by_key_or_fail('test_users', key={'id': user['id']})
-        assert updated_user['name'] == 'Jane Doe'
+        updated_user_data = User(id=user.id, name='Jane Doe', email=user.email)
+        await db.update_by_key(updated_user_data, key={'id': user.id})
+        updated_user = await db.get_by_key_or_fail(User, key={'id': user.id})
+        assert updated_user.name == 'Jane Doe'
         # 测试删除
-        await db.delete_by_key('test_users', key={'id': user['id']})
-        deleted_user = await db.get_by_key('test_users', key={'id': user['id']})
+        await db.delete_by_key(User, key={'id': user.id})
+        deleted_user = await db.get_by_key(User, key={'id': user.id})
         assert deleted_user is None
 
 

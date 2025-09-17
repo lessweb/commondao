@@ -32,7 +32,8 @@ class TestCRUDOperations:
     async def db(self, db_config: Dict[str, Any]) -> AsyncGenerator[Commondao, None]:
         async with connect(**db_config) as db:
             await db.execute_mutation('''
-                CREATE TABLE IF NOT EXISTS test_users (
+                DROP TABLE IF EXISTS test_users;
+                CREATE TABLE test_users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     name VARCHAR(100) NOT NULL,
                     email VARCHAR(100) UNIQUE,
@@ -123,11 +124,11 @@ class TestCRUDOperations:
         user = User(name='Frank', email='frank@example.com', age=35)
         await db.insert(user)
         # Test updating with only None age field (exclude_none=True means only age is excluded)
-        # Since email has the same value, it will still result in an UPDATE statement
+        # Since email has the same value, MySQL returns 0 when no actual change occurs
         updated_user = User(name='Frank', email='frank@example.com', age=None)
         affected_rows = await db.update_by_key(updated_user, key={'name': 'Frank'})
-        # This will be 1 because email field is included in the update even with same value
-        assert affected_rows == 1
+        # MySQL returns 0 when updating with same values (no actual change)
+        assert affected_rows == 0
         # 验证数据保持相同值
         result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Frank'")
         assert len(result) == 1
