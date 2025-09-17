@@ -5,7 +5,13 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel
 
-from commondao import Commondao, connect, NotFoundError, EmptyPrimaryKeyError, is_row_dict
+from commondao import (
+    Commondao,
+    EmptyPrimaryKeyError,
+    NotFoundError,
+    connect,
+    is_row_dict,
+)
 from commondao.annotation import TableId
 
 
@@ -232,10 +238,7 @@ class TestCRUDOperations:
         user = User(name='Luke', email='luke@example.com', age=35)
         await db.insert(user)
         # 获取插入后的ID
-        result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Luke'")
-        assert len(result) == 1
-        assert is_row_dict(result[0])
-        user_id = result[0]['id']
+        user_id = db.lastrowid()
         # 通过ID更新数据
         updated_user = User(id=user_id, name='Luke Updated', email='luke.updated@example.com', age=36)
         affected_rows = await db.update_by_id(updated_user)
@@ -253,11 +256,7 @@ class TestCRUDOperations:
         # 插入测试数据
         user = User(name='Maria', email='maria@example.com', age=25)
         await db.insert(user)
-        # 获取插入后的ID
-        result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Maria'")
-        assert len(result) == 1
-        assert is_row_dict(result[0])
-        user_id = result[0]['id']
+        user_id = db.lastrowid()
         # 使用包含None值的数据更新（exclude_none=True，所以None值会被跳过）
         updated_user = User(id=user_id, name='Maria Updated', email='maria.updated@example.com', age=None)
         affected_rows = await db.update_by_id(updated_user)
