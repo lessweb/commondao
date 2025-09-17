@@ -6,7 +6,8 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel
 
-from commondao import Commondao, RawSql, connect
+from commondao import Commondao, connect
+from commondao.annotation import RawSql
 
 
 class RegistrationStatus(Enum):

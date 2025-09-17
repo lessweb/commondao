@@ -6,7 +6,8 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel
 
-from commondao import Commondao, RawSql, connect, is_row_dict
+from commondao import Commondao, connect, is_row_dict
+from commondao.annotation import RawSql
 from commondao.commondao import validate_row
 
 

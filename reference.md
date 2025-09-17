@@ -461,7 +461,7 @@ Annotation to include raw SQL expressions in SELECT queries.
 
 **Usage:**
 ```python
-from commondao import RawSql
+from commondao.annotation import RawSql
 from typing import Annotated
 
 class UserWithFullName(BaseModel):

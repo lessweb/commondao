@@ -15,8 +15,8 @@ import orjson
 from aiomysql import DictCursor
 from pydantic import BaseModel
 
-from commondao.annotation import RawSql, TableId
-from commondao.error import (
+from .annotation import RawSql, TableId
+from .error import (
     EmptyPrimaryKeyError,
     NotFoundError,
     NotTableError,
@@ -508,7 +508,7 @@ class Commondao:
         Example:
             ```python
             from pydantic import BaseModel
-            from commondao import RawSql
+            from commondao.annotation import RawSql
             from typing import Annotated
 
             class User(BaseModel):

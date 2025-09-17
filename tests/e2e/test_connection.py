@@ -1,11 +1,11 @@
 import os
+from typing import Annotated, Optional
 
 import pytest
 import pytest_asyncio
-from typing import Optional, Annotated
 from pydantic import BaseModel
 
-from commondao.commondao import connect
+from commondao import connect
 from commondao.annotation import TableId
 
 

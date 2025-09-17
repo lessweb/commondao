@@ -6,13 +6,9 @@ from typing import Annotated
 
 from pydantic import BaseModel
 
+from commondao import is_row_dict
 from commondao.annotation import TableId
-from commondao.commondao import (
-    dump_entity_to_row,
-    get_table_meta,
-    is_row_dict,
-    validate_row,
-)
+from commondao.commondao import dump_entity_to_row, get_table_meta, validate_row
 
 
 class UserKV(BaseModel):

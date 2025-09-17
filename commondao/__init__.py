@@ -6,18 +6,17 @@ if typing.TYPE_CHECKING:
         Commondao,
         Paged,
         QueryDict,
-        RawSql,
         RowDict,
         connect,
         is_query_dict,
         is_row_dict,
     )
     from .error import (
+        EmptyPrimaryKeyError,
+        MissingParamError,
         NotFoundError,
         NotTableError,
-        MissingParamError,
         TooManyResultError,
-        EmptyPrimaryKeyError,
     )
 
 __all__ = (
@@ -29,7 +28,6 @@ __all__ = (
     "EmptyPrimaryKeyError",
     "Paged",
     "QueryDict",
-    "RawSql",
     "RowDict",
     "connect",
     "is_query_dict",
@@ -46,7 +44,6 @@ _dynamic_imports: 'dict[str, tuple[str|None, str]]' = {
     "EmptyPrimaryKeyError": (__name__, ".error"),
     "Paged": (__name__, ".commondao"),
     "QueryDict": (__name__, ".commondao"),
-    "RawSql": (__name__, ".commondao"),
     "RowDict": (__name__, ".commondao"),
     "connect": (__name__, ".commondao"),
     "is_query_dict": (__name__, ".commondao"),

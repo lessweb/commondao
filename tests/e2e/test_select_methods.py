@@ -5,7 +5,8 @@ import pytest
 import pytest_asyncio
 from pydantic import BaseModel
 
-from commondao import Commondao, NotFoundError, RawSql, connect
+from commondao import Commondao, NotFoundError, connect
+from commondao.annotation import RawSql
 
 
 class User(BaseModel):

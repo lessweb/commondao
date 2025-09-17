@@ -142,7 +142,7 @@ user = await db.get_by_key_or_fail(User, key={'email': 'john@example.com'})
 
 # Use with Pydantic models
 from pydantic import BaseModel
-from commondao import RawSql
+from commondao.annotation import RawSql
 from typing import Annotated
 
 class UserModel(BaseModel):

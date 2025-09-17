@@ -3,8 +3,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List
 
+from commondao.annotation import RawSql
 from commondao.commondao import (
-    RawSql,
     RegexCollect,
     and_,
     is_list_type,
