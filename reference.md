@@ -92,6 +92,23 @@ user_update = UserUpdate(name='Jane', email='jane@example.com')
 affected_rows = await db.update_by_key(user_update, key={'id': 1})
 ```
 
+### `delete_by_id(entity_class: Type[BaseModel], entity_id: Union[int, str]) -> int`
+
+Delete a record by its primary key value.
+
+**Parameters:**
+- `entity_class` (Type[BaseModel]): Pydantic model class
+- `entity_id` (Union[int, str]): The primary key value
+
+**Returns:** int - Number of affected rows
+
+**Raises:**
+- `AssertionError`: If entity_id is None
+
+**Example:**
+```python
+affected_rows = await db.delete_by_id(User, 1)
+```
 ### `delete_by_key(entity_class: Type[BaseModel], *, key: QueryDict) -> int`
 
 Delete records matching the specified key conditions.
@@ -111,44 +128,44 @@ affected_rows = await db.delete_by_key(User, key={'id': 1})
 
 ## Query Methods
 
-### `get_by_id(entity_class: Type[M], *, key: QueryDict) -> Optional[M]`
+### `get_by_id(entity_class: Type[M], entity_id: Union[int, str]) -> Optional[M]`
 
-Get a single record by primary key.
+Get a single record by its primary key value.
 
 **Parameters:**
 - `entity_class` (Type[M]): Pydantic model class
-- `key` (QueryDict): Dictionary containing primary key value
+- `entity_id` (Union[int, str]): The primary key value
 
 **Returns:** Optional[M] - Model instance or None if not found
 
 **Raises:**
-- `AssertionError`: If primary key value is None
+- `AssertionError`: If entity_id is None
 
 **Example:**
 ```python
-user = await db.get_by_id(User, key={'id': 1})
+user = await db.get_by_id(User, 1)
 if user:
     print(f"Found user: {user.name}")
 ```
 
-### `get_by_id_or_fail(entity_class: Type[M], *, key: QueryDict) -> M`
+### `get_by_id_or_fail(entity_class: Type[M], entity_id: Union[int, str]) -> M`
 
-Get a single record by primary key or raise an error if not found.
+Get a single record by its primary key value or raise an error if not found.
 
 **Parameters:**
 - `entity_class` (Type[M]): Pydantic model class
-- `key` (QueryDict): Dictionary containing primary key value
+- `entity_id` (Union[int, str]): The primary key value
 
 **Returns:** M - Model instance
 
 **Raises:**
 - `NotFoundError`: If no record matches the primary key
-- `AssertionError`: If primary key value is None
+- `AssertionError`: If entity_id is None
 
 **Example:**
 ```python
 try:
-    user = await db.get_by_id_or_fail(User, key={'id': 1})
+    user = await db.get_by_id_or_fail(User, 1)
     print(f"User: {user.name}")
 except NotFoundError:
     print("User not found")
@@ -482,7 +499,7 @@ Raised when a record is not found in operations that expect a result.
 **Example:**
 ```python
 try:
-    user = await db.get_by_id_or_fail(User, key={'id': 999})
+    user = await db.get_by_id_or_fail(User, 999)
 except NotFoundError as e:
     print(f"User not found: {e}")
 ```
@@ -626,10 +643,15 @@ def example_function(unknown_data: dict):
 
 When designing Pydantic models for database operations, follow these naming conventions to improve code clarity and maintainability:
 
-把dao.insert的实体类命名为以Insert为后缀的类名; 把dao.update的实体类重命名为以Update为后缀的类名; 其他用于查询的类名不变
+- **Naming Convention**: Name entity classes used for `dao.insert()` with an `Insert` suffix; name entity classes used for `dao.update()` with an `Update` suffix; keep query entity class names unchanged.
 
-一般来说, 用于查询的实体类如果字段DDL为not null,则字段就不能optional; 用于insert的实体类如果字段DDL为nullable,或者有默认值,则字段就可以optional;用于update的实体类的字段都是optional
+- **Field Optionality Rules**:
+  - For query entity classes: If a field's DDL is `NOT NULL`, the field should not be optional
+  - For insert entity classes: If a field's DDL is `nullable` or has a default value, the field can be optional
+  - For update entity classes: All fields should be optional
 
-用于insert的实体类只包含可能需要插入的字段;用于update的实体类只包含可能需要修改的字段
+- **Field Inclusion**:
+  - Insert entity classes should only include fields that may need to be inserted
+  - Update entity classes should only include fields that may need to be modified
 
-用于insert/update的实体类，即使主键字段是optional，也需要注解TableId
+- **TableId Annotation**: Entity classes used for insert/update operations must always include the `TableId` annotation, even if the primary key field is optional

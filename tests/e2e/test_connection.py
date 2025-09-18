@@ -107,8 +107,9 @@ async def test_basic_operations(setup_test_table):
         updated_user = await db.get_by_key_or_fail(User, key={'id': user.id})
         assert updated_user.name == 'Jane Doe'
         # 测试删除
-        await db.delete_by_key(User, key={'id': user.id})
-        deleted_user = await db.get_by_key(User, key={'id': user.id})
+        assert user.id
+        await db.delete_by_id(User, user.id)
+        deleted_user = await db.get_by_id(User, user.id)
         assert deleted_user is None
 
 

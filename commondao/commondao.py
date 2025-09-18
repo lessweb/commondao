@@ -436,6 +436,11 @@ class Commondao:
         )
         return await self.execute_mutation(sql, {**data, **key})
 
+    async def delete_by_id(self, entity_class: Type[M], entity_id: Union[int, str]) -> int:
+        pk, _ = get_table_meta(entity_class)
+        assert entity_id is not None, f'Primary key {pk} value is None in {entity_class.__name__}'
+        return await self.delete_by_key(entity_class, key={pk: entity_id})
+
     async def delete_by_key(self, entity_class: Type[M], *, key: QueryDict) -> int:
         _, table_meta = get_table_meta(entity_class)
         sql = script(
@@ -446,15 +451,15 @@ class Commondao:
         )
         return await self.execute_mutation(sql, key)
 
-    async def get_by_id(self, entity_class: Type[M], *, key: QueryDict) -> Optional[M]:
+    async def get_by_id(self, entity_class: Type[M], entity_id: Union[int, str]) -> Optional[M]:
         pk, _ = get_table_meta(entity_class)
-        assert key.get(pk) is not None, f'Primary key {pk} value is None in {entity_class.__name__}'
-        return await self.get_by_key(entity_class, key=key)
+        assert entity_id is not None, f'Primary key {pk} value is None in {entity_class.__name__}'
+        return await self.get_by_key(entity_class, key={pk: entity_id})
 
-    async def get_by_id_or_fail(self, entity_class: Type[M], *, key: QueryDict) -> M:
+    async def get_by_id_or_fail(self, entity_class: Type[M], entity_id: Union[int, str]) -> M:
         pk, _ = get_table_meta(entity_class)
-        assert key.get(pk) is not None, f'Primary key {pk} value is None in {entity_class.__name__}'
-        return await self.get_by_key_or_fail(entity_class, key=key)
+        assert entity_id is not None, f'Primary key {pk} value is None in {entity_class.__name__}'
+        return await self.get_by_key_or_fail(entity_class, key={pk: entity_id})
 
     async def get_by_key(self, entity_class: Type[M], *, key: QueryDict) -> Optional[M]:
         _, table_meta = get_table_meta(entity_class)

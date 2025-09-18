@@ -131,18 +131,21 @@ await db.update_by_key(user_update, key={'email': 'john.smith@example.com'})
 ### Delete Data
 
 ```python
-# Delete by key using entity class
-await db.delete_by_key(User, key={'id': 1})
+# Delete by primary key
+await db.delete_by_id(User, 1)
+
+# Delete by custom key
+await db.delete_by_key(User, key={'email': 'john@example.com'})
 ```
 
 ### Query Data
 
 ```python
-# Get a single row by id
-user = await db.get_by_id(User, key={'id': 1})
+# Get a single row by primary key
+user = await db.get_by_id(User, 1)
 
-# Get a row by id or raise NotFoundError if not found
-user = await db.get_by_id_or_fail(User, key={'id': 1})
+# Get a row by primary key or raise NotFoundError if not found
+user = await db.get_by_id_or_fail(User, 1)
 
 # Get by custom key
 user = await db.get_by_key(User, key={'email': 'john@example.com'})

@@ -293,8 +293,9 @@ class TestCRUDOperations:
         assert len(result) == 1
         assert is_row_dict(result[0])
         user_id = result[0]['id']
+        assert isinstance(user_id, int)
         # 通过ID获取数据
-        retrieved_user = await db.get_by_id(User, key={'id': user_id})
+        retrieved_user = await db.get_by_id(User, user_id)
         # 验证结果
         assert retrieved_user is not None
         assert retrieved_user.name == 'Nina'
@@ -304,14 +305,14 @@ class TestCRUDOperations:
     @pytest.mark.asyncio
     async def test_get_by_id_nonexistent(self, db: Commondao) -> None:
         # 尝试获取不存在的记录
-        result = await db.get_by_id(User, key={'id': 99999})
+        result = await db.get_by_id(User, 99999)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_get_by_id_none_primary_key(self, db: Commondao) -> None:
         # 测试None主键应该抛出断言异常
         with pytest.raises(AssertionError):
-            await db.get_by_id(User, key={'id': None})
+            await db.get_by_id(User, None)  # type: ignore
 
     @pytest.mark.asyncio
     async def test_get_by_id_or_fail(self, db: Commondao) -> None:
@@ -323,8 +324,9 @@ class TestCRUDOperations:
         assert len(result) == 1
         assert is_row_dict(result[0])
         user_id = result[0]['id']
+        assert isinstance(user_id, int)
         # 通过ID获取数据
-        retrieved_user = await db.get_by_id_or_fail(User, key={'id': user_id})
+        retrieved_user = await db.get_by_id_or_fail(User, user_id)
         # 验证结果
         assert retrieved_user is not None
         assert retrieved_user.name == 'Oscar'
@@ -335,10 +337,10 @@ class TestCRUDOperations:
     async def test_get_by_id_or_fail_nonexistent(self, db: Commondao) -> None:
         # 尝试获取不存在的记录，应抛出NotFoundError
         with pytest.raises(NotFoundError):
-            await db.get_by_id_or_fail(User, key={'id': 99999})
+            await db.get_by_id_or_fail(User, 99999)
 
     @pytest.mark.asyncio
     async def test_get_by_id_or_fail_none_primary_key(self, db: Commondao) -> None:
         # 测试None主键应该抛出断言异常
         with pytest.raises(AssertionError):
-            await db.get_by_id_or_fail(User, key={'id': None})
+            await db.get_by_id_or_fail(User, None)  # type: ignore
