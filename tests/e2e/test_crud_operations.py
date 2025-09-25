@@ -115,7 +115,7 @@ class TestCRUDOperations:
         await db.insert(user)
         # 使用包含None值的数据更新
         updated_user = User(name='Eve', email='eve.updated@example.com', age=None)
-        affected_rows = await db.update_by_key(updated_user, key={'name': 'Eve'})
+        affected_rows = await db.update_by_key(updated_user, key={'name': 'Eve'}, exclude_none=True)
         assert affected_rows == 1
         # 验证数据已更新，但age保持原值未变
         result = await db.execute_query("SELECT * FROM test_users WHERE name = 'Eve'")
@@ -132,7 +132,7 @@ class TestCRUDOperations:
         # Test updating with only None age field (exclude_none=True means only age is excluded)
         # Since email has the same value, MySQL returns 0 when no actual change occurs
         updated_user = User(name='Frank', email='frank@example.com', age=None)
-        affected_rows = await db.update_by_key(updated_user, key={'name': 'Frank'})
+        affected_rows = await db.update_by_key(updated_user, key={'name': 'Frank'}, exclude_none=True)
         # MySQL returns 0 when updating with same values (no actual change)
         assert affected_rows == 0
         # 验证数据保持相同值
@@ -259,7 +259,7 @@ class TestCRUDOperations:
         user_id = db.lastrowid()
         # 使用包含None值的数据更新（exclude_none=True，所以None值会被跳过）
         updated_user = User(id=user_id, name='Maria Updated', email='maria.updated@example.com', age=None)
-        affected_rows = await db.update_by_id(updated_user)
+        affected_rows = await db.update_by_id(updated_user, exclude_none=True)
         assert affected_rows == 1
         # 验证数据已更新，但age保持原值未变
         result = await db.execute_query("SELECT * FROM test_users WHERE id = :id", {'id': user_id})

@@ -192,8 +192,8 @@ def get_table_meta(model: Type[M]) -> tuple[str, TableId]:
     raise NotTableError(f'Model {model.__name__} is not configured as a table entity. Add TableId annotation to define the table mapping.')
 
 
-def dump_entity_to_row(entity: BaseModel, *, exclude_none: bool) -> RowDict:
-    data = entity.model_dump(exclude_none=exclude_none)
+def dump_entity_to_row(entity: BaseModel, *, exclude_unset: bool, exclude_none: bool) -> RowDict:
+    data = entity.model_dump(exclude_unset=exclude_unset, exclude_none=exclude_none)
     result: dict[str, Any] = {}
     for key, value in data.items():
         if isinstance(value, (dict, list)):
@@ -378,7 +378,7 @@ class Commondao:
         logging.debug('execute result rowcount: %s', cursor.rowcount)
         return cursor.rowcount
 
-    async def insert(self, entity: BaseModel, *, ignore=False) -> int:
+    async def insert(self, entity: BaseModel, *, ignore=False, exclude_unset: bool = True, exclude_none: bool = False) -> int:
         """
         Insert a new row into the specified table.
 
@@ -390,7 +390,7 @@ class Commondao:
         Note: RawSql metadata is not supported in insert()
         """
         _, table_meta = get_table_meta(entity.__class__)
-        data = dump_entity_to_row(entity, exclude_none=True)
+        data = dump_entity_to_row(entity, exclude_unset=exclude_unset, exclude_none=exclude_none)
         sql = script(
             ('insert into' if not ignore else 'insert ignore into'),
             table_meta.tablename,
@@ -402,9 +402,9 @@ class Commondao:
         )
         return await self.execute_mutation(sql, data)
 
-    async def update_by_id(self, entity: BaseModel) -> int:
+    async def update_by_id(self, entity: BaseModel, *, exclude_unset: bool = True, exclude_none: bool = False) -> int:
         pk, table_meta = get_table_meta(entity.__class__)
-        data = dump_entity_to_row(entity, exclude_none=True)
+        data = dump_entity_to_row(entity, exclude_unset=exclude_unset, exclude_none=exclude_none)
         pk_value = data.get(pk)
         if not pk_value:
             raise EmptyPrimaryKeyError(f'Primary key "{pk}" cannot be empty for {entity.__class__.__name__} instance. Provide a valid primary key value.')
@@ -421,9 +421,9 @@ class Commondao:
         )
         return await self.execute_mutation(sql, {**data, **{pk: pk_value}})
 
-    async def update_by_key(self, entity: BaseModel, *, key: QueryDict) -> int:
+    async def update_by_key(self, entity: BaseModel, *, key: QueryDict, exclude_unset: bool = True, exclude_none: bool = False) -> int:
         _, table_meta = get_table_meta(entity.__class__)
-        data = dump_entity_to_row(entity, exclude_none=True)
+        data = dump_entity_to_row(entity, exclude_unset=exclude_unset, exclude_none=exclude_none)
         if not data:
             return 0
         sql = script(

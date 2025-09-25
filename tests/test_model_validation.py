@@ -133,7 +133,7 @@ class TestModelValidation(unittest.TestCase):
             gender=Gender.FEMALE,
         )
 
-        row = dump_entity_to_row(user, exclude_none=True)
+        row = dump_entity_to_row(user, exclude_unset=True, exclude_none=True)
 
         self.assertTrue(is_row_dict(row))
         self.assertEqual(row['id'], 1)
@@ -163,7 +163,7 @@ class TestModelValidation(unittest.TestCase):
             time_diff=timedelta(0),
         )
 
-        row = dump_entity_to_row(user, exclude_none=True)
+        row = dump_entity_to_row(user, exclude_unset=True, exclude_none=True)
 
         self.assertTrue(is_row_dict(row))
         # None values should be excluded
@@ -177,7 +177,7 @@ class TestModelValidation(unittest.TestCase):
         # Non-None values should be included
         self.assertEqual(row['name'], 'Minimal User')
         self.assertEqual(row['birthday'], date(2000, 1, 1))
-        self.assertEqual(row['is_admin'], False)  # Default value, not None
+        self.assertNotIn('is_admin', row)
         self.assertEqual(row['kv_list'], '[]')
         self.assertEqual(row['dec_val'], Decimal('0.00'))
         self.assertEqual(row['buf'], b'')
@@ -194,7 +194,7 @@ class TestModelValidation(unittest.TestCase):
             time_diff=timedelta(hours=3),
         )
 
-        row = dump_entity_to_row(user, exclude_none=False)
+        row = dump_entity_to_row(user, exclude_unset=False, exclude_none=False)
 
         self.assertTrue(is_row_dict(row))
         # None values should be included
@@ -257,7 +257,7 @@ class TestModelValidation(unittest.TestCase):
         )
 
         # Convert to row
-        row = dump_entity_to_row(original_user, exclude_none=True)
+        row = dump_entity_to_row(original_user, exclude_unset=True, exclude_none=True)
         self.assertTrue(is_row_dict(row))
 
         # Convert back to model
