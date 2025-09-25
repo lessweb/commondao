@@ -109,6 +109,12 @@ print(f"New user id: {db.lastrowid()}")  # Get the auto-generated id
 # Insert with ignore option (skips duplicate key errors)
 user2 = UserInsert(name='Jane', email='jane@example.com')
 await db.insert(user2, ignore=True)
+
+# Insert with custom field handling
+# exclude_unset=False: includes all fields, even those not explicitly set
+# exclude_none=True: excludes fields with None values
+user3 = UserInsert(name='Bob', email='bob@example.com')
+await db.insert(user3, exclude_unset=False, exclude_none=True)
 ```
 
 ### Update Data (with Pydantic Models)
@@ -126,6 +132,16 @@ await db.update_by_id(user)
 # Update by custom key (partial update - only specified fields)
 user_update = UserUpdate(name='Jane Doe', email='jane.doe@example.com')
 await db.update_by_key(user_update, key={'email': 'john.smith@example.com'})
+
+# Update with field handling options
+# exclude_unset=True (default): only update explicitly set fields
+# exclude_none=False (default): include None values (set column to NULL)
+user = UserUpdate(id=2, name='Alice', email=None)
+await db.update_by_id(user, exclude_unset=True, exclude_none=False)  # Sets email to NULL
+
+# Update excluding None values
+user = UserUpdate(id=3, name='Bob', email=None)
+await db.update_by_id(user, exclude_unset=True, exclude_none=True)  # Won't update email column
 ```
 
 ### Delete Data

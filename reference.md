@@ -42,13 +42,15 @@ async with connect(host='localhost', user='root', password='pwd', db='testdb') a
 
 ## Core CRUD Operations
 
-### `insert(entity: BaseModel, *, ignore: bool = False) -> int`
+### `insert(entity: BaseModel, *, ignore: bool = False, exclude_unset: bool = True, exclude_none: bool = False) -> int`
 
 Insert a Pydantic model instance into the database.
 
 **Parameters:**
 - `entity` (BaseModel): Pydantic model instance to insert
 - `ignore` (bool): Use INSERT IGNORE to skip duplicate key errors
+- `exclude_unset` (bool): If True (default), excludes fields not explicitly set. Allows database defaults for unset fields
+- `exclude_none` (bool): If False (default), includes None values. If True, excludes None values from INSERT
 
 **Returns:** int - Number of affected rows (1 on success, 0 if ignored)
 
@@ -58,12 +60,14 @@ user = UserInsert(name='John', email='john@example.com')
 affected_rows = await db.insert(user)
 ```
 
-### `update_by_id(entity: BaseModel) -> int`
+### `update_by_id(entity: BaseModel, *, exclude_unset: bool = True, exclude_none: bool = False) -> int`
 
 Update a record by its primary key using a Pydantic model.
 
 **Parameters:**
 - `entity` (BaseModel): Pydantic model with primary key value set
+- `exclude_unset` (bool): If True (default), only updates explicitly set fields. Enables partial updates
+- `exclude_none` (bool): If False (default), includes None values (sets to NULL). If True, excludes None values
 
 **Returns:** int - Number of affected rows
 
@@ -76,13 +80,15 @@ user = UserUpdate(id=1, name='John Updated', email='john.new@example.com')
 affected_rows = await db.update_by_id(user)
 ```
 
-### `update_by_key(entity: BaseModel, *, key: QueryDict) -> int`
+### `update_by_key(entity: BaseModel, *, key: QueryDict, exclude_unset: bool = True, exclude_none: bool = False) -> int`
 
 Update records matching the specified key conditions.
 
 **Parameters:**
 - `entity` (BaseModel): Pydantic model with update values
 - `key` (QueryDict): Dictionary of key-value pairs for WHERE conditions
+- `exclude_unset` (bool): If True (default), only updates explicitly set fields. Enables partial updates
+- `exclude_none` (bool): If False (default), includes None values (sets to NULL). If True, excludes None values
 
 **Returns:** int - Number of affected rows
 

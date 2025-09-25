@@ -382,9 +382,18 @@ class Commondao:
         """
         Insert a new row into the specified table.
 
-        :param ignore: If True, uses INSERT IGNORE to skip rows that would cause
-                    duplicate key errors. If False (default), uses regular INSERT.
-        :return: The number of rows affected by the insertion (typically 1 for success,
+        Args:
+            entity (BaseModel): The Pydantic model instance to insert into the database.
+            ignore (bool, optional): If True, uses INSERT IGNORE to skip rows that would cause
+                        duplicate key errors. If False (default), uses regular INSERT.
+            exclude_unset (bool, optional): If True (default), excludes fields that were not explicitly set
+                        in the model instance. This allows inserting only the fields that were provided,
+                        letting the database use default values for other fields.
+            exclude_none (bool, optional): If False (default), includes fields with None values in the INSERT.
+                        If True, excludes fields with None values from the INSERT statement.
+
+        Returns:
+            int: The number of rows affected by the insertion (typically 1 for success,
                 0 for INSERT IGNORE when a duplicate is skipped)
 
         Note: RawSql metadata is not supported in insert()
@@ -403,6 +412,24 @@ class Commondao:
         return await self.execute_mutation(sql, data)
 
     async def update_by_id(self, entity: BaseModel, *, exclude_unset: bool = True, exclude_none: bool = False) -> int:
+        """
+        Update a row in the database by its primary key.
+
+        Args:
+            entity (BaseModel): The Pydantic model instance containing the data to update.
+                        The primary key field must be included and non-empty.
+            exclude_unset (bool, optional): If True (default), only updates fields that were explicitly set
+                        in the model instance. This allows partial updates without affecting other columns.
+            exclude_none (bool, optional): If False (default), includes fields with None values in the UPDATE
+                        (sets them to NULL in the database). If True, excludes fields with None values
+                        from the UPDATE statement.
+
+        Returns:
+            int: The number of rows affected by the update (typically 1 if the row exists, 0 if not)
+
+        Raises:
+            EmptyPrimaryKeyError: If the primary key field is None or not provided in the entity
+        """
         pk, table_meta = get_table_meta(entity.__class__)
         data = dump_entity_to_row(entity, exclude_unset=exclude_unset, exclude_none=exclude_none)
         pk_value = data.get(pk)
@@ -422,6 +449,27 @@ class Commondao:
         return await self.execute_mutation(sql, {**data, **{pk: pk_value}})
 
     async def update_by_key(self, entity: BaseModel, *, key: QueryDict, exclude_unset: bool = True, exclude_none: bool = False) -> int:
+        """
+        Update rows in the database matching the specified key conditions.
+
+        Args:
+            entity (BaseModel): The Pydantic model instance containing the data to update.
+            key (QueryDict): A dictionary of column-value pairs to identify which rows to update.
+                        All conditions must match (uses AND logic).
+            exclude_unset (bool, optional): If True (default), only updates fields that were explicitly set
+                        in the model instance. This allows partial updates without affecting other columns.
+            exclude_none (bool, optional): If False (default), includes fields with None values in the UPDATE
+                        (sets them to NULL in the database). If True, excludes fields with None values
+                        from the UPDATE statement.
+
+        Returns:
+            int: The number of rows affected by the update
+
+        Example:
+            # Update only the name field for users with specific email
+            user_update = UserUpdate(name='New Name')
+            await db.update_by_key(user_update, key={'email': 'user@example.com'})
+        """
         _, table_meta = get_table_meta(entity.__class__)
         data = dump_entity_to_row(entity, exclude_unset=exclude_unset, exclude_none=exclude_none)
         if not data:
