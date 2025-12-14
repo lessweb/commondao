@@ -127,12 +127,12 @@ async def test_model_validation(setup_test_table):
     }
     async with connect(**db_config) as db:
         # 使用select_one查询并验证模型
-        user = await db.select_one("select * from test_users", User)
+        user = await db.select_one("from test_users", User)
         assert user is not None
         assert isinstance(user, User)
         assert user.name == 'Test User'
         assert user.email == 'test@example.com'
         # 使用select_all查询所有数据
-        users = await db.select_all("select * from test_users", User)
+        users = await db.select_all("from test_users", User)
         assert len(users) >= 1
         assert all(isinstance(u, User) for u in users)

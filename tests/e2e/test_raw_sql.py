@@ -67,7 +67,7 @@ class TestRawSql:
     async def test_select_one_with_raw_sql(self, db: Commondao) -> None:
         # 测试使用 RawSql 获取单个记录
         user = await db.select_one(
-            "select * from test_raw_sql_users where id = :id",
+            "from test_raw_sql_users where id = :id",
             UserWithCalculatedFields,
             {"id": 1}
         )
@@ -81,7 +81,7 @@ class TestRawSql:
     async def test_select_one_with_null_values(self, db: Commondao) -> None:
         # 测试带有空值的记录
         user = await db.select_one(
-            "select * from test_raw_sql_users where id = :id",
+            "from test_raw_sql_users where id = :id",
             UserWithCalculatedFields,
             {"id": 3}
         )
@@ -96,7 +96,7 @@ class TestRawSql:
     async def test_select_all_with_raw_sql(self, db: Commondao) -> None:
         # 测试使用 RawSql 获取多个记录
         users = await db.select_all(
-            "select * from test_raw_sql_users order by id",
+            "from test_raw_sql_users order by id",
             UserWithCalculatedFields,
             {}
         )
@@ -114,7 +114,7 @@ class TestRawSql:
     async def test_select_paged_with_raw_sql(self, db: Commondao) -> None:
         # 测试使用 RawSql 进行分页查询
         paged_result = await db.select_paged(
-            "select * from test_raw_sql_users order by id",
+            "from test_raw_sql_users order by id",
             UserWithCalculatedFields,
             {},
             size=2,
@@ -146,7 +146,7 @@ class TestRawSql:
             has_email: Annotated[bool, RawSql("email IS NOT NULL")]
         # 测试复杂的 RawSql 表达式
         users = await db.select_all(
-            "select * from test_raw_sql_users order by id",
+            "from test_raw_sql_users order by id",
             UserWithComplexExpressions,
             {}
         )

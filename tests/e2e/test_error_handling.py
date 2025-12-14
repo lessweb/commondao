@@ -57,7 +57,7 @@ class TestErrorHandling:
 
         with pytest.raises(NotFoundError):
             await db.select_one_or_fail(
-                'select * from test_error_handling where id = :id',
+                'from test_error_handling where id = :id',
                 TestRecord,
                 {'id': 999}
             )
@@ -76,7 +76,7 @@ class TestErrorHandling:
             email: str
 
         result = await db.select_one(
-            'select * from test_error_handling where id = :id',
+            'from test_error_handling where id = :id',
             TestRecord,
             {'id': 999}
         )

@@ -74,7 +74,7 @@ class TestSelectMethods:
     async def test_select_one(self, db: Commondao) -> None:
         # 测试正常情况
         user: Optional[User] = await db.select_one(
-            "select * from test_users where name = :name",
+            "from test_users where name = :name",
             User,
             {"name": "Alice"}
         )
@@ -85,14 +85,14 @@ class TestSelectMethods:
         assert user.age == 30
         # 测试返回空的情况
         non_user: Optional[User] = await db.select_one(
-            "select * from test_users where name = :name",
+            "from test_users where name = :name",
             User,
             {"name": "NonExistent"}
         )
         assert non_user is None
         # 测试带有RawSql的情况
         user_with_full_name: Optional[UserWithFullName] = await db.select_one(
-            "select * from test_users where name = :name",
+            "from test_users where name = :name",
             UserWithFullName,
             {"name": "Bob"}
         )
@@ -103,7 +103,7 @@ class TestSelectMethods:
     async def test_select_one_or_fail(self, db: Commondao) -> None:
         # 测试正常情况
         user: User = await db.select_one_or_fail(
-            "select * from test_users where name = :name",
+            "from test_users where name = :name",
             User,
             {"name": "Charlie"}
         )
@@ -114,13 +114,13 @@ class TestSelectMethods:
         # 测试抛出异常的情况
         with pytest.raises(NotFoundError):
             await db.select_one_or_fail(
-                "select * from test_users where name = :name",
+                "from test_users where name = :name",
                 User,
                 {"name": "NonExistent"}
             )
         # 测试带有RawSql的情况
         user_with_full_name: UserWithFullName = await db.select_one_or_fail(
-            "select * from test_users where name = :name",
+            "from test_users where name = :name",
             UserWithFullName,
             {"name": "David"}
         )
@@ -130,7 +130,7 @@ class TestSelectMethods:
     async def test_select_all(self, db: Commondao) -> None:
         # 测试获取所有记录
         users: list[User] = await db.select_all(
-            "select * from test_users order by age",
+            "from test_users order by age",
             User
         )
         assert len(users) == 5
@@ -141,7 +141,7 @@ class TestSelectMethods:
         assert users[4].name == "David"
         # 测试使用条件过滤
         filtered_users: list[User] = await db.select_all(
-            "select * from test_users where age > :min_age order by name",
+            "from test_users where age > :min_age order by name",
             User,
             {"min_age": 30}
         )
@@ -150,14 +150,14 @@ class TestSelectMethods:
         assert filtered_users[1].name == "David"
         # 测试空结果
         empty_users: list[User] = await db.select_all(
-            "select * from test_users where name = :name",
+            "from test_users where name = :name",
             User,
             {"name": "NonExistent"}
         )
         assert len(empty_users) == 0
         # 测试带有RawSql的情况
         users_with_full_name: list[UserWithFullName] = await db.select_all(
-            "select * from test_users order by age desc limit 2",
+            "from test_users order by age desc limit 2",
             UserWithFullName
         )
         assert len(users_with_full_name) == 2
@@ -168,7 +168,7 @@ class TestSelectMethods:
     async def test_select_paged(self, db: Commondao) -> None:
         # 测试基本分页功能
         result = await db.select_paged(
-            "select * from test_users order by age",
+            "from test_users order by age",
             User,
             {},
             size=2,
@@ -182,7 +182,7 @@ class TestSelectMethods:
         assert result.items[1].name == "Bob"
         # 测试下一页
         next_page = await db.select_paged(
-            "select * from test_users order by age",
+            "from test_users order by age",
             User,
             {},
             size=2,
@@ -196,7 +196,7 @@ class TestSelectMethods:
         assert next_page.items[1].name == "Charlie"
         # 测试最后一页（不满size的情况）
         last_page = await db.select_paged(
-            "select * from test_users order by age",
+            "from test_users order by age",
             User,
             {},
             size=2,
@@ -209,7 +209,7 @@ class TestSelectMethods:
         assert last_page.items[0].name == "David"
         # 测试带条件的分页
         filtered_page = await db.select_paged(
-            "select * from test_users where age > :min_age order by name",
+            "from test_users where age > :min_age order by name",
             User,
             {"min_age": 25},
             size=2,
@@ -221,7 +221,7 @@ class TestSelectMethods:
         assert filtered_page.items[1].name == "Charlie"
         # 测试带有RawSql的情况
         custom_page = await db.select_paged(
-            "select * from test_users order by age desc",
+            "from test_users order by age desc",
             UserWithFullName,
             {},
             size=3,

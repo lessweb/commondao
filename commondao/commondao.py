@@ -529,19 +529,19 @@ class Commondao:
             raise NotFoundError(f'No {entity_class.__name__} instance found matching the query criteria: {key}')
         return validate_row(rows[0], entity_class)
 
-    # async def select_one(self, sql, select: Type[U], data: QueryDict = MappingProxyType({})) -> Optional[U]:
-    async def select_one(self, sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> Optional[M]:
+    # async def select_one(self, headless_sql, select: Type[U], data: QueryDict = MappingProxyType({})) -> Optional[U]:
+    async def select_one(self, headless_sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> Optional[M]:
         """
         Execute a SELECT query and return the first row as a validated Pydantic model instance.
 
-        This method transforms a simplified SQL query (starting with 'select * from') into a proper
-        SELECT statement with explicit column selection based on the provided Pydantic model fields.
-        It supports both regular column selection and raw SQL expressions through RawSql metadata.
+        This method constructs a SELECT statement with explicit column selection based on the provided
+        Pydantic model fields. It supports both regular column selection and raw SQL expressions through
+        RawSql metadata.
 
         Args:
-            sql (str): SQL query string that must start with 'select * from'. The '*' will be
-                    replaced with explicit column names based on the select model fields.
-                    Example: "select * from users where age > :min_age"
+            headless_sql (str): SQL query string starting with 'from' (without the SELECT clause).
+                    The method will add the appropriate SELECT clause based on the select model fields.
+                    Examples: "from users where age > :min_age", "from `users`", "from (subquery) as t"
             select (Type[U]): Pydantic model class that defines the expected structure of the
                             returned data. Field names should match database column names.
                             Fields can include RawSql metadata for custom SQL expressions.
@@ -572,7 +572,7 @@ class Commondao:
 
             # Find user by ID
             user = await db.select_one(
-                "select * from users where id = :user_id",
+                "from users where id = :user_id",
                 User,
                 {"user_id": 123}
             )
@@ -584,11 +584,11 @@ class Commondao:
             ```
 
         Note:
-            - Column selection is based on the Pydantic model fields, not the '*' in the SQL
+            - Column selection is based on the Pydantic model fields
             - Raw SQL expressions can be used through RawSql metadata on model fields
         """
-        assert sql.lower().startswith('select * from')
-        headless_sql = sql[13:]
+        headless_sql = headless_sql.strip()
+        assert re.match(r'^from\s+', headless_sql, re.IGNORECASE), "headless_sql must start with 'from'"
         select_items: list[str] = []
         for name, info in select.model_fields.items():
             for metadata in info.metadata:
@@ -598,7 +598,7 @@ class Commondao:
             else:  # else-for
                 select_items.append(f'`{name}`')
             # end-for
-        select_clause = 'select %s from ' % ', '.join(select_items)
+        select_clause = 'select %s' % ', '.join(select_items)
         sql = f'{select_clause} {headless_sql}'
         rows = await self.execute_query(sql, data)
         if len(rows) > 1:
@@ -607,22 +607,26 @@ class Commondao:
             return None
         return validate_row(rows[0], select)
 
-    async def select_one_or_fail(self, sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> M:
+    async def select_one_or_fail(self, headless_sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> M:
         """
         Execute a SELECT query and return the first row as a validated Pydantic model instance.
 
-        This method transforms a simplified SQL query (starting with 'select * from') into a proper
-        SELECT statement with explicit column selection based on the provided Pydantic model fields.
-        It raises a NotFoundError if no matching row is found.
+        This method constructs a SELECT statement with explicit column selection based on the provided
+        Pydantic model fields. It raises a NotFoundError if no matching row is found.
+
+        Args:
+            headless_sql (str): SQL query string starting with 'from' (without the SELECT clause).
+                    The method will add the appropriate SELECT clause based on the select model fields.
+                    Examples: "from users where age > :min_age", "from `users`", "from (subquery) as t"
 
         Note:
             - The method automatically adds 'LIMIT 1' to ensure only one row is returned.
-            - Column selection is based on the Pydantic model fields, not the '*' in the SQL.
+            - Column selection is based on the Pydantic model fields.
             - Raw SQL expressions can be used through RawSql metadata on model fields.
             - If you want to allow the query to return None if no row is found, use `select_one` instead.
         """
-        assert sql.lower().startswith('select * from')
-        headless_sql = sql[13:]
+        headless_sql = headless_sql.strip()
+        assert re.match(r'^from\s+', headless_sql, re.IGNORECASE), "headless_sql must start with 'from'"
         select_items: list[str] = []
         for name, info in select.model_fields.items():
             for metadata in info.metadata:
@@ -632,7 +636,7 @@ class Commondao:
             else:  # else-for
                 select_items.append(f'`{name}`')
             # end-for
-        select_clause = 'select %s from ' % ', '.join(select_items)
+        select_clause = 'select %s' % ', '.join(select_items)
         sql = f'{select_clause} {headless_sql}'
         rows = await self.execute_query(sql, data)
         if not rows:
@@ -641,18 +645,18 @@ class Commondao:
             raise TooManyResultError(f'Query returned {len(rows)} results for {select.__name__}, but expected exactly 1. Use select_all() for multiple results.')
         return validate_row(rows[0], select)
 
-    async def select_all(self, sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> list[M]:
+    async def select_all(self, headless_sql, select: Type[M], data: QueryDict = MappingProxyType({})) -> list[M]:
         """
         Execute a SELECT query and return all rows as validated Pydantic model instances.
 
-        This method transforms a simplified SQL query (starting with 'select * from') into a proper
-        SELECT statement with explicit column selection based on the provided Pydantic model fields.
-        It supports both regular column selection and raw SQL expressions through RawSql metadata.
+        This method constructs a SELECT statement with explicit column selection based on the provided
+        Pydantic model fields. It supports both regular column selection and raw SQL expressions through
+        RawSql metadata.
 
         Args:
-            sql (str): SQL query string that must start with 'select * from'. The '*' will be
-                    replaced with explicit column names based on the select model fields.
-                    Example: "select * from users where age > :min_age"
+            headless_sql (str): SQL query string starting with 'from' (without the SELECT clause).
+                    The method will add the appropriate SELECT clause based on the select model fields.
+                    Examples: "from users where age > :min_age", "from `users`", "from (subquery) as t"
             select (Type[U]): Pydantic model class that defines the expected structure of the
                             returned data. Field names should match database column names.
                             Fields can include RawSql metadata for custom SQL expressions.
@@ -665,11 +669,11 @@ class Commondao:
                     Each row data is validated against the Pydantic model schema.
 
         Note:
-            - Column selection is based on the Pydantic model fields, not the '*' in the SQL.
+            - Column selection is based on the Pydantic model fields.
             - Raw SQL expressions can be used through RawSql metadata on model fields.
         """
-        assert sql.lower().startswith('select * from')
-        headless_sql = sql[13:]
+        headless_sql = headless_sql.strip()
+        assert re.match(r'^from\s+', headless_sql, re.IGNORECASE), "headless_sql must start with 'from'"
         select_items: list[str] = []
         for name, info in select.model_fields.items():
             for metadata in info.metadata:
@@ -679,7 +683,7 @@ class Commondao:
             else:  # else-for
                 select_items.append(f'`{name}`')
             # end-for
-        select_clause = 'select %s from ' % ', '.join(select_items)
+        select_clause = 'select %s' % ', '.join(select_items)
         sql = f'{select_clause} {headless_sql}'
         rows = await self.execute_query(sql, data)
         models = [validate_row(row, select) for row in rows]
@@ -687,7 +691,7 @@ class Commondao:
 
     async def select_paged(
         self,
-        sql: str,
+        headless_sql: str,
         select: Type[M],
         data: QueryDict,
         *,
@@ -697,13 +701,13 @@ class Commondao:
         """
         Execute a paginated SELECT query and return a Paged object containing the results.
 
-        This method transforms a SELECT query to support pagination using LIMIT and OFFSET clauses.
+        This method constructs a SELECT query to support pagination using LIMIT and OFFSET clauses.
         It also performs a COUNT query to determine the total number of records available.
 
         Args:
-            sql (str): The SQL query string. Must start with 'select * from' (case-insensitive).
-                      The '*' will be replaced with the actual column selections based on the
-                      select model fields.
+            headless_sql (str): SQL query string starting with 'from' (without the SELECT clause).
+                      The method will add the appropriate SELECT clause based on the select model fields.
+                      Examples: "from users where active = :active order by name", "from `users`"
             select (Type[U]): A Pydantic BaseModel class that defines the structure of the
                              returned data. The method will validate each row against this model.
             data (QueryDict): A dictionary containing parameters for the SQL query. Keys should
@@ -735,7 +739,7 @@ class Commondao:
 
             # Get first 10 users
             result = await db.select_paged(
-                "select * from users where active = :active order by name",
+                "from users where active = :active order by name",
                 User,
                 {"active": True},
                 size=10,
@@ -744,7 +748,7 @@ class Commondao:
 
             # Get next 10 users
             next_result = await db.select_paged(
-                "select * from users where active = :active order by name",
+                "from users where active = :active order by name",
                 User,
                 {"active": True},
                 size=10,
@@ -758,11 +762,8 @@ class Commondao:
         Note:
             - The method automatically handles RawSql metadata in model fields for custom SQL expressions
             - Column names are automatically quoted with backticks for MySQL compatibility
-            - The original SQL's SELECT clause is replaced, so complex SELECT expressions should be
-              defined using RawSql metadata in the model fields
         """
-        assert sql.lower().startswith('select * from')
-        headless_sql = sql[13:]
+        assert re.match(r'^\s*from\s+', headless_sql, re.IGNORECASE), "headless_sql must start with 'from'"
         offset = max(0, offset)
         size = max(1, size)
         select_items: list[str] = []
@@ -774,9 +775,9 @@ class Commondao:
             else:  # else-for
                 select_items.append(f'`{name}`')
             # end-for
-        select_clause = 'select %s from ' % ', '.join(select_items)
+        select_clause = 'select %s' % ', '.join(select_items)
         sql = f'{select_clause} {headless_sql}'
-        count_sql = f'select count(*) as total from {headless_sql}'
+        count_sql = f'select count(*) as total {headless_sql}'
         count_result = await self.execute_query(count_sql, data)
         assert count_result, "count result should not be empty"
         total: int = count_result[0]['total']  # type: ignore

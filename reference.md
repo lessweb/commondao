@@ -210,12 +210,12 @@ Get a single record matching the key conditions or raise an error if not found.
 user = await db.get_by_key_or_fail(User, key={'email': 'john@example.com'})
 ```
 
-### `select_one(sql: str, select: Type[M], data: QueryDict = {}) -> Optional[M]`
+### `select_one(headless_sql: str, select: Type[M], data: QueryDict = {}) -> Optional[M]`
 
 Execute a SELECT query and return the first row as a validated model instance.
 
 **Parameters:**
-- `sql` (str): SQL query starting with 'select * from'
+- `headless_sql` (str): SQL query starting with 'from' (without SELECT clause). Examples: `"from users where age > :min_age"`, `"from \`users\`"`, `"from (subquery) as t"`
 - `select` (Type[M]): Pydantic model class for result validation
 - `data` (QueryDict): Parameters for the query
 
@@ -224,18 +224,18 @@ Execute a SELECT query and return the first row as a validated model instance.
 **Example:**
 ```python
 user = await db.select_one(
-    "select * from users where age > :min_age",
+    "from users where age > :min_age",
     User,
     {"min_age": 18}
 )
 ```
 
-### `select_one_or_fail(sql: str, select: Type[M], data: QueryDict = {}) -> M`
+### `select_one_or_fail(headless_sql: str, select: Type[M], data: QueryDict = {}) -> M`
 
 Execute a SELECT query and return the first row or raise an error if not found.
 
 **Parameters:**
-- `sql` (str): SQL query starting with 'select * from'
+- `headless_sql` (str): SQL query starting with 'from' (without SELECT clause). Examples: `"from users where email = :email"`, `"from \`users\`"`, `"from (subquery) as t"`
 - `select` (Type[M]): Pydantic model class for result validation
 - `data` (QueryDict): Parameters for the query
 
@@ -247,18 +247,18 @@ Execute a SELECT query and return the first row or raise an error if not found.
 **Example:**
 ```python
 user = await db.select_one_or_fail(
-    "select * from users where email = :email",
+    "from users where email = :email",
     User,
     {"email": "john@example.com"}
 )
 ```
 
-### `select_all(sql: str, select: Type[M], data: QueryDict = {}) -> list[M]`
+### `select_all(headless_sql: str, select: Type[M], data: QueryDict = {}) -> list[M]`
 
 Execute a SELECT query and return all matching rows as validated model instances.
 
 **Parameters:**
-- `sql` (str): SQL query starting with 'select * from'
+- `headless_sql` (str): SQL query starting with 'from' (without SELECT clause). Examples: `"from users where status = :status"`, `"from \`users\`"`, `"from (subquery) as t"`
 - `select` (Type[M]): Pydantic model class for result validation
 - `data` (QueryDict): Parameters for the query
 
@@ -267,18 +267,18 @@ Execute a SELECT query and return all matching rows as validated model instances
 **Example:**
 ```python
 active_users = await db.select_all(
-    "select * from users where status = :status",
+    "from users where status = :status",
     User,
     {"status": "active"}
 )
 ```
 
-### `select_paged(sql: str, select: Type[M], data: QueryDict = {}, *, size: int, offset: int = 0) -> Paged[M]`
+### `select_paged(headless_sql: str, select: Type[M], data: QueryDict = {}, *, size: int, offset: int = 0) -> Paged[M]`
 
 Execute a paginated SELECT query with total count.
 
 **Parameters:**
-- `sql` (str): SQL query starting with 'select * from'
+- `headless_sql` (str): SQL query starting with 'from' (without SELECT clause). Examples: `"from users where status = :status"`, `"from \`users\`"`, `"from (subquery) as t"`
 - `select` (Type[M]): Pydantic model class for result validation
 - `data` (QueryDict): Parameters for the query
 - `size` (int): Number of items per page
@@ -289,7 +289,7 @@ Execute a paginated SELECT query with total count.
 **Example:**
 ```python
 result = await db.select_paged(
-    "select * from users where status = :status",
+    "from users where status = :status",
     User,
     {"status": "active"},
     size=10,

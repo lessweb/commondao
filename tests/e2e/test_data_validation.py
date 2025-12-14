@@ -101,7 +101,7 @@ class TestDataValidation:
             "INSERT INTO test_users_validation (name, email, age, metadata, tags) VALUES "
             "('Alice', 'alice@example.com', 25, '{\"role\":\"user\"}', '[\"python\",\"mysql\"]')"
         )
-        user = await db.select_one("SELECT * FROM test_users_validation WHERE name = :name", User, {"name": "Alice"})
+        user = await db.select_one("FROM test_users_validation WHERE name = :name", User, {"name": "Alice"})
         assert user is not None
         assert isinstance(user, User)
         assert user.name == "Alice"
@@ -117,7 +117,7 @@ class TestDataValidation:
             "('Bob', 'bob@example.com', 30), "
             "('Charlie', 'charlie@example.com', 35)"
         )
-        users = await db.select_all("SELECT * FROM test_users_validation WHERE age > :min_age", User, {"min_age": 25})
+        users = await db.select_all("FROM test_users_validation WHERE age > :min_age", User, {"min_age": 25})
         assert len(users) == 2
         assert all(isinstance(user, User) for user in users)
         assert {user.name for user in users} == {"Bob", "Charlie"}
@@ -132,7 +132,7 @@ class TestDataValidation:
             )
         # Get first 2 users
         paged_result = await db.select_paged(
-            "SELECT * FROM test_users_validation ORDER BY id",
+            "FROM test_users_validation ORDER BY id",
             User, {}, size=2, offset=0
         )
         assert paged_result.total == 5
@@ -144,7 +144,7 @@ class TestDataValidation:
         assert paged_result.items[1].name == "User1"
         # Get next 2 users
         paged_result = await db.select_paged(
-            "SELECT * FROM test_users_validation ORDER BY id",
+            "FROM test_users_validation ORDER BY id",
             User, {}, size=2, offset=2
         )
         assert len(paged_result.items) == 2
@@ -158,7 +158,7 @@ class TestDataValidation:
             "('David', 17), "
             "('Eve', 21)"
         )
-        users = await db.select_all("SELECT * FROM test_users_validation", UserWithRawSql, {})
+        users = await db.select_all("FROM test_users_validation", UserWithRawSql, {})
         assert len(users) == 2
         david = next(user for user in users if user.name == "David")
         eve = next(user for user in users if user.name == "Eve")
@@ -174,7 +174,7 @@ class TestDataValidation:
             "('Frank', 'frank@example.com', 40)"
         )
         user = await db.select_one_or_fail(
-            "SELECT * FROM test_users_validation WHERE name = :name",
+            "FROM test_users_validation WHERE name = :name",
             User, {"name": "Frank"}
         )
         assert isinstance(user, User)
@@ -182,7 +182,7 @@ class TestDataValidation:
         assert user.age == 40
         with pytest.raises(Exception):
             await db.select_one_or_fail(
-                "SELECT * FROM test_users_validation WHERE name = :name",
+                "FROM test_users_validation WHERE name = :name",
                 User,
                 {"name": "NonExistent"}
             )
